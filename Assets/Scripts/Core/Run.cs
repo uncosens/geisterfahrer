@@ -65,8 +65,9 @@ namespace Geisterfahrer.Core
             Collide(h);
         }
 
-        // After a rail hit, the small push-off bounce still counts as touching, so sliding along the rail scrapes.
-        const double RailTouchGap = 0.3;
+        // After a rail hit, the push-off bounce and the car straightening (corner moves ~0.3 m back)
+        // still count as touching, so pressing along the rail scrapes instead of hitting again and again.
+        const double RailTouchGap = 0.6;
 
         void Collide(double h)
         {
@@ -100,7 +101,8 @@ namespace Geisterfahrer.Core
                 if (j >= T.CrashImpulse) { Crashed = true; return; }
                 Hits++;
                 V = Math.Max(0, V - T.SpeedLossKmhPerImpulse * j / 3.6);
-                if (nx != 0) Side = -Math.Sign(nx) * T.PushOffSideSpeed;
+                // Same 0.25 x speed side limit as steering, so a slow car does not spin round.
+                if (nx != 0) Side = -Math.Sign(nx) * Math.Min(T.PushOffSideSpeed, T.SideSpeedPerSpeed * V);
             }
             else V = Math.Max(0, V - T.ScrapeKmhPerSecond / 3.6 * h);
             touching = true;

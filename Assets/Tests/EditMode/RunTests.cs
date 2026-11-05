@@ -94,6 +94,17 @@ namespace Geisterfahrer.Tests
         }
 
         [Test]
+        public void SlowRailScrapeDoesNotStopTheCarAtOnce()
+        {
+            var r = RailHit(60, 3, out _); // J = 4.5: survive, -36 km/h
+            for (int i = 0; i < 60; i++) r.Step(Dt, -0.4, false); // keep pressing into the rail for 1 s
+            Assert.IsFalse(r.Crashed);
+            Assert.AreEqual(1, r.Hits);
+            Assert.Less(Math.Abs(r.Yaw), Math.Atan(0.26));
+            Assert.Greater(r.V * 3.6, 4); // 60 - 36 - 15 - coasting ≈ 7
+        }
+
+        [Test]
         public void NoTunnelingAtTopClosingSpeed()
         {
             var r = NewRun(306);

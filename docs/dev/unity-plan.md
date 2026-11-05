@@ -285,3 +285,11 @@ Confirmed: `Geisterfahrer`, `com.uncosens.geisterfahrer`, landscape only, person
 1. Go-ahead to create the Unity project in this folder.
 2. Git: GitHub repo `uncosens/geisterfahrer` (private?) and Git LFS for art, yes or no.
 3. Unity Hub license still active on this PC (batch builds need it).
+
+## 12. Changes during implementation (2026-11-05)
+
+- Tuning is a plain `[Serializable] Tuning` class on `GameLoop`, and vehicle data is a table in `Core/Road.cs`, not ScriptableObjects (fewer assets; same named constants).
+- HUD and panels use IMGUI for now; uGUI comes with the designer's UI.
+- Placeholder models and the road are built in code; `GameLoop.vehiclePrefabs` / `playerPrefab` take real models.
+- No Android x86_64: Unity 6.3 refuses it. The emulator runs the ARM64 APK through translation and needs `-force-gles` (its Vulkan driver crashes).
+- After a rail hit the rail counts as "still touching" until the car is 0.6 m away, so pressing along the rail scrapes instead of bumping again and again. Push-off side speed is capped at 0.25 x speed like steering.
