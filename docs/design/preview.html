@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Geisterfahrer Art Direction</title>
+<style>
+  :root { --bg:#111214; --card:#1a1b1e; --line:#2a2c30; --text:#e9e9ea; --muted:#9a9ca1; --accent:#3D7BFF; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  header { padding:24px 16px 8px; max-width:1400px; margin:0 auto; display:flex; flex-wrap:wrap; gap:12px; align-items:end; justify-content:space-between; }
+  h1 { margin:0; font-size:20px; font-weight:650; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .seg button { background:none; border:0; color:var(--muted); padding:8px 14px; font:inherit; cursor:pointer; }
+  .seg button.on { background:var(--line); color:var(--text); }
+  main { max-width:1400px; margin:0 auto; padding:8px 16px 32px; display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr)); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; }
+  .card h2 { margin:0 0 2px; font-size:16px; display:flex; gap:8px; align-items:center; }
+  .pick { font-size:11px; font-weight:600; color:#fff; background:var(--accent); border-radius:6px; padding:2px 7px; }
+  .sub { color:var(--muted); margin:0 0 12px; }
+  .frames { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  .frame { position:relative; height:340px; aspect-ratio:9/19.5; border-radius:22px; overflow:hidden; border:3px solid #000; box-shadow:0 0 0 1px var(--line); }
+  body.tablet .frame { aspect-ratio:3/4; border-radius:14px; height:260px; }
+  .frame > svg { position:absolute; inset:0; width:100%; height:100%; display:block; }
+  .hud { position:absolute; inset:0; pointer-events:none; }
+  .score { position:absolute; top:52px; left:0; right:0; text-align:center; font-variant-numeric:tabular-nums; }
+  .pause { position:absolute; top:16px; right:12px; width:30px; height:30px; display:grid; place-items:center; }
+  .over { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; }
+  .big, .score { font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .best { display:flex; gap:5px; align-items:center; font-variant-numeric:tabular-nums; }
+  .btns { display:flex; gap:10px; margin-top:14px; }
+  .btn { width:46px; height:46px; display:grid; place-items:center; }
+  .sw { display:flex; flex-wrap:wrap; gap:6px; margin:14px 0 10px; }
+  .sw span { display:flex; align-items:center; gap:5px; font:11px ui-monospace,Consolas,monospace; color:var(--muted); }
+  .sw i { width:14px; height:14px; border-radius:4px; border:1px solid #ffffff22; }
+  dl { display:grid; grid-template-columns:auto 1fr; gap:3px 12px; margin:0; font-size:13px; }
+  dt { color:var(--muted); } dd { margin:0; }
+
+  /* a: flat minimal */
+  .a .score { color:#F2F2F2; font:700 26px Inter,system-ui,sans-serif; }
+  .a .pause { border-radius:50%; background:#ffffff14; }
+  .a .over { background:#141517d9; box-shadow:inset 0 0 0 3px #FF4D4F, inset 0 0 40px #FF4D4F55; color:#F2F2F2; font-family:Inter,system-ui,sans-serif; }
+  .a .big { font-size:40px; font-weight:800; }
+  .a .best { color:#9AA0A6; font-size:14px; }
+  .a .btn { border-radius:12px; }
+  .a .btn.p { background:#3D7BFF; } .a .btn.s { border:2px solid #ffffff33; }
+
+  /* b: low-poly */
+  .b .score { color:#fff; font:italic 700 28px "Barlow Condensed","Roboto Condensed","Arial Narrow",sans-serif; font-stretch:condensed; text-shadow:0 2px 6px #0008; }
+  .b .pause { border-radius:8px; background:#0000004d; }
+  .b .over { background:#1a1830aa; backdrop-filter:blur(6px); color:#fff; font-family:"Barlow Condensed","Arial Narrow",sans-serif; font-stretch:condensed; }
+  .b .big { font-size:54px; font-style:italic; font-weight:700; }
+  .b .best { color:#F2B33D; font-size:16px; font-style:italic; }
+  .b .btn { border-radius:10px; }
+  .b .btn.p { background:#3D7BFF; box-shadow:0 3px 0 #2552b8; } .b .btn.s { background:#ffffff22; }
+
+  /* c: neon */
+  .c .score { color:#20E3FF; font:700 22px Orbitron,"Share Tech Mono",ui-monospace,Consolas,monospace; letter-spacing:3px; text-shadow:0 0 6px #20E3FF,0 0 14px #20E3FF88; }
+  .c .pause { border-radius:6px; border:1.5px solid #20E3FF; box-shadow:0 0 8px #20E3FF88; }
+  .c .over { background:#0b0420cc; color:#FF2BD6; font-family:Orbitron,ui-monospace,Consolas,monospace; }
+  .c .big { font-size:30px; font-weight:700; letter-spacing:3px; text-shadow:0 0 8px #FF2BD6,0 0 20px #FF2BD6; }
+  .c .best { color:#20E3FF; font-size:13px; letter-spacing:2px; }
+  .c .btn { border-radius:6px; }
+  .c .btn.p { border:2px solid #20E3FF; box-shadow:0 0 10px #20E3FF; } .c .btn.s { border:2px solid #FF2BD6aa; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Geisterfahrer — art direction a / b / c</h1>
+  <p style="flex-basis:100%;margin:0;color:#9a9ca1">Decision: the user chose a realistic version of b. See art-direction-3d.md.</p>
+  <div class="seg"><button class="on" data-r="phone">Phone 9:19.5</button><button data-r="tablet">Tablet 3:4</button></div>
+</header>
+<main id="m"></main>
+
+<script>
+// Scenes use viewBox -200..400 wide so wider frames show more side scenery ("slice" crops to fit).
+const VB = '-200 0 600 400';
+const icon = {
+  pause: c => `<svg viewBox="0 0 24 24" width="16" height="16"><rect x="6" y="5" width="4" height="14" rx="1" fill="${c}"/><rect x="14" y="5" width="4" height="14" rx="1" fill="${c}"/></svg>`,
+  retry: c => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="${c}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>`,
+  home: c => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="${c}" stroke-width="2.2" stroke-linejoin="round"><path d="M4 11l8-7 8 7v9h-5v-6h-6v6H4z"/></svg>`,
+  trophy: c => `<svg viewBox="0 0 24 24" width="14" height="14" fill="${c}"><path d="M7 3h10v3h3v2a5 5 0 0 1-4.6 5A5 5 0 0 1 13 15.9V18h3v3H8v-3h3v-2.1A5 5 0 0 1 8.6 13 5 5 0 0 1 4 8V6h3zm0 5V8H6a3 3 0 0 0 1 2zm10 0v2a3 3 0 0 0 1-2z"/></svg>`
+};
+
+// a: top-down car, front points up. Body color via fill on <use>.
+const carA = (x, y, fill, down, w = 20, h = 36) =>
+  `<g transform="translate(${x} ${y}) ${down ? 'rotate(180)' : ''}" >
+    <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="5" fill="${fill}"/>
+    <rect x="${-w/2+3}" y="${-h/2+8}" width="${w-6}" height="7" rx="2" fill="#000" opacity=".38"/>
+    <rect x="${-w/2+3}" y="${h/2-7}" width="${w-6}" height="4" rx="1.5" fill="#000" opacity=".25"/>
+    <rect x="${-w/2+2}" y="${-h/2}" width="4" height="2" fill="${down ? '#FFF8E1' : '#ffffffaa'}"/>
+    <rect x="${w/2-6}" y="${-h/2}" width="4" height="2" fill="${down ? '#FFF8E1' : '#ffffffaa'}"/>
+  </g>`;
+
+function sceneA() {
+  const lanes = [47.5, 82.5, 117.5, 152.5];
+  return `<svg viewBox="${VB}" preserveAspectRatio="xMidYMid slice">
+    <rect x="-200" width="600" height="400" fill="#24262A"/>
+    <rect x="30" width="140" height="400" fill="#313338"/>
+    <path d="M32 0V400M168 0V400" stroke="#E8E6E1" stroke-width="2"/>
+    <path d="M65 -6V400M100 -6V400M135 -6V400" stroke="#E8E6E1" stroke-opacity=".7" stroke-width="2" stroke-dasharray="14 18"/>
+    <path d="M70 230v26M76 236v26" stroke="#2FD27A" stroke-width="2" stroke-linecap="round" opacity=".8"/>
+    ${carA(lanes[0], 60, '#E8E6E1', 1)}
+    ${carA(lanes[3], 30, '#9AA0A6', 1)}
+    ${carA(lanes[2], 150, '#F2C94C', 1, 22, 52)}
+    ${carA(lanes[0], 240, '#E8E6E1', 1)}
+    ${carA(lanes[1], 320, '#3D7BFF', 0)}
+  </svg>`;
+}
+
+// b and c: pseudo-3D. Horizon y=150, road 94..106 at top, 0..200 at bottom.
+const laneX = (k, y) => { const t = (y - 150) / 250; return (95.5 + 3*k) + t * ((25 + 50*k) - (95.5 + 3*k)); };
+const scl = y => (12 + (y - 150) / 250 * 188) / 200;
+
+const carBrear = (x, y, s, c) => `<g transform="translate(${x} ${y}) scale(${s})">
+  <ellipse cx="0" cy="4" rx="24" ry="4" fill="#000" opacity=".35"/>
+  <polygon points="-22,0 -20,-12 22,-12 22,0 21,4 -21,4" fill="${c}"/>
+  <polygon points="-22,0 22,0 21,4 -21,4" fill="#2552b8"/>
+  <polygon points="-14,-22 14,-22 20,-12 -20,-12" fill="#2C5FD6"/>
+  <polygon points="-11,-21 11,-21 15,-13 -15,-13" fill="#1B2240"/>
+  <polygon points="-20,-12 0,-12 -22,0" fill="#5a92ff" opacity=".35"/>
+  <rect x="-20" y="-8" width="8" height="3" fill="#FF4D4F"/><rect x="12" y="-8" width="8" height="3" fill="#FF4D4F"/>
+</g>`;
+const carBfront = (x, y, s, c, d) => `<g transform="translate(${x} ${y}) scale(${s})">
+  <circle cx="-14" cy="-6" r="14" fill="#FFE8A3" opacity=".18"/><circle cx="14" cy="-6" r="14" fill="#FFE8A3" opacity=".18"/>
+  <polygon points="-22,0 -20,-12 20,-12 22,0 21,4 -21,4" fill="${c}"/>
+  <polygon points="-14,-22 14,-22 20,-12 -20,-12" fill="${d}"/>
+  <polygon points="-11,-21 11,-21 15,-13 -15,-13" fill="#1B2240"/>
+  <polygon points="0,-12 20,-12 22,0" fill="#000" opacity=".12"/>
+  <rect x="-19" y="-7" width="7" height="3" fill="#FFE8A3"/><rect x="12" y="-7" width="7" height="3" fill="#FFE8A3"/>
+</g>`;
+
+function sceneB() {
+  const lines = [0,1,2,3,4].map(k => `<line x1="${94+3*k}" y1="150" x2="${50*k}" y2="400" ${k%4 ? 'stroke-dasharray="10 12" stroke-opacity=".75"' : ''}/>`).join('');
+  return `<svg viewBox="${VB}" preserveAspectRatio="xMidYMid slice">
+    <defs><linearGradient id="skyB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2B2A5A"/><stop offset="1" stop-color="#F28C5B"/></linearGradient></defs>
+    <rect x="-200" width="600" height="152" fill="url(#skyB)"/>
+    <circle cx="150" cy="150" r="22" fill="#FFD9A8" opacity=".85"/>
+    <polygon points="-200,150 -150,105 -90,132 -40,95 20,135 60,112 100,150" fill="#5E4A80"/>
+    <polygon points="90,150 140,118 180,138 240,100 300,130 350,108 400,150" fill="#4B3B6E"/>
+    <polygon points="-200,150 400,150 400,400 -200,400" fill="#2E3A44"/>
+    <polygon points="-200,150 94,150 -60,400 -200,400" fill="#34424C"/>
+    <polygon points="106,150 400,150 400,260 260,400" fill="#34424C"/>
+    <polygon points="-200,250 -60,400 -200,400" fill="#2a353e"/>
+    <polygon points="94,150 106,150 200,400 0,400" fill="#3B3D4A"/>
+    <polygon points="100,150 106,150 200,400 100,400" fill="#000" opacity=".08"/>
+    <g stroke="#E9E4D8" stroke-width="2">${lines}</g>
+    ${carBfront(laneX(3,185), 185, scl(185), '#7FB2A8', '#6a9a90')}
+    ${carBfront(laneX(2,215), 215, scl(215), '#F2B33D', '#d99a26')}
+    ${carBfront(laneX(0,275), 275, scl(275), '#E9E4D8', '#cfc9bb')}
+    ${carBrear(laneX(1,370), 370, 1.5, '#3D7BFF')}
+  </svg>`;
+}
+
+const carCrear = (x, y, s) => `<g transform="translate(${x} ${y}) scale(${s})" fill="#0B0420" stroke="#3D7BFF" stroke-width="1.6" stroke-linejoin="round">
+  <polygon points="-22,0 -20,-12 -14,-22 14,-22 20,-12 22,0 21,4 -21,4"/>
+  <polyline points="-20,-12 20,-12" stroke="#20E3FF"/><polyline points="-11,-20 11,-20 15,-14 -15,-14 -11,-20" stroke="#20E3FF"/>
+  <rect x="-19" y="-8" width="8" height="2.5" fill="#FF4D4F" stroke="none"/><rect x="11" y="-8" width="8" height="2.5" fill="#FF4D4F" stroke="none"/>
+</g>`;
+const carCfront = (x, y, s) => `<g transform="translate(${x} ${y}) scale(${s})" fill="#0B0420" stroke="#FF2BD6" stroke-width="2" stroke-linejoin="round">
+  <polygon points="-22,0 -20,-12 -14,-22 14,-22 20,-12 22,0 21,4 -21,4"/>
+  <polyline points="-20,-12 20,-12"/>
+  <circle cx="-15" cy="-6" r="3" fill="#fff" stroke="none"/><circle cx="15" cy="-6" r="3" fill="#fff" stroke="none"/>
+</g>`;
+
+function sceneC() {
+  let grid = '';
+  for (let j = -10; j <= 14; j++) grid += `<line x1="100" y1="150" x2="${50*j}" y2="400"/>`;
+  for (let k = 1; k <= 9; k++) { const y = 150 + 250 * (k/9) ** 2; grid += `<line x1="-200" y1="${y}" x2="400" y2="${y}"/>`; }
+  const stripes = [118, 128, 136, 142, 147].map((y, i) => `<rect x="40" y="${y}" width="120" height="${1.5 + i*0.8}" fill="#0B0420"/>`).join('');
+  return `<svg viewBox="${VB}" preserveAspectRatio="xMidYMid slice">
+    <defs>
+      <linearGradient id="sunC" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFD166"/><stop offset="1" stop-color="#FF2BD6"/></linearGradient>
+      <filter id="glowC" filterUnits="userSpaceOnUse" x="-200" y="0" width="600" height="400"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>
+    <rect x="-200" width="600" height="400" fill="#0B0420"/>
+    <circle cx="100" cy="112" r="44" fill="url(#sunC)"/>${stripes}
+    <polyline points="-200,150 -150,118 -110,138 -60,104 -20,140 30,124 60,150 140,150 170,122 210,140 260,100 310,136 350,116 400,150" fill="#0B0420" stroke="#7B2CBF" stroke-width="1.5" filter="url(#glowC)"/>
+    <rect x="-200" y="150" width="600" height="250" fill="#12062E"/>
+    <g stroke="#FF2BD6" stroke-opacity=".55" stroke-width="1" filter="url(#glowC)">${grid}</g>
+    <polygon points="94,150 106,150 200,400 0,400" fill="#0B0420" opacity=".75"/>
+    <g stroke="#20E3FF" stroke-width="2.2" filter="url(#glowC)"><line x1="94" y1="150" x2="0" y2="400"/><line x1="106" y1="150" x2="200" y2="400"/></g>
+    <g filter="url(#glowC)">
+      ${carCfront(laneX(2,205), 205, scl(205))}
+      ${carCfront(laneX(0,265), 265, scl(265))}
+      ${carCrear(laneX(1,370), 370, 1.5)}
+    </g>
+  </svg>`;
+}
+
+const C = [
+  { id:'a', name:'a — Flat Minimal, top-down', pick:true, scene:sceneA, sub:'2D, straight down. Road scrolls; lanes all visible.',
+    fg:'#F2F2F2', btnP:'#fff', btnS:'#F2F2F2', trophy:'#F2C94C',
+    sw:['#24262A','#313338','#E8E6E1','#F2C94C','#9AA0A6','#3D7BFF','#FF4D4F','#2FD27A'],
+    facts:[['Camera','Top-down 2D, portrait'],['Font','Inter Bold'],['Art cost','Low — shapes in code, no assets'],['Scaling','Fit road to short side; more verge on wide, more road ahead on tall (capped)']] },
+  { id:'b', name:'b — Low-poly 3D, chase cam', scene:sceneB, sub:'3D behind the car. Dusk light, flat-shaded models.',
+    fg:'#fff', btnP:'#fff', btnS:'#fff', trophy:'#F2B33D',
+    sw:['#2B2A5A','#F28C5B','#5E4A80','#2E3A44','#3B3D4A','#F2B33D','#3D7BFF','#FF4D4F'],
+    facts:[['Camera','Chase cam 3D'],['Font','Barlow Condensed SemiBold Italic'],['Art cost','High — 3D engine, models, lighting'],['Scaling','Fixed vertical FOV; min horizontal FOV on tall phones']] },
+  { id:'c', name:'c — Neon Retro, pseudo-3D', scene:sceneC, sub:'Arcade vanishing point. Glowing outlines on night grid.',
+    fg:'#20E3FF', btnP:'#20E3FF', btnS:'#FF2BD6', trophy:'#20E3FF',
+    sw:['#0B0420','#12062E','#FF2BD6','#20E3FF','#7B2CBF','#FFD166','#3D7BFF','#FF4D4F'],
+    facts:[['Camera','Pseudo-3D, horizon at 38 %'],['Font','Orbitron Bold'],['Art cost','Medium — glow pass + projection math'],['Scaling','Horizon fixed %; grid extends sideways']] },
+];
+
+const m = document.getElementById('m');
+for (const c of C) {
+  const pauseHud = `<div class="hud"><div class="score">12 480</div><div class="pause">${icon.pause(c.fg)}</div></div>`;
+  const overHud = `<div class="over"><div class="big">12 480</div><div class="best">${icon.trophy(c.trophy)}31 900</div>
+     <div class="btns"><div class="btn p">${icon.retry(c.id === 'a' || c.id === 'b' ? '#fff' : c.btnP)}</div><div class="btn s">${icon.home(c.btnS)}</div></div></div>`;
+  m.insertAdjacentHTML('beforeend', `<section class="card ${c.id}">
+    <h2>${c.name}${c.pick ? '<span class="pick">Designer pick</span>' : ''}</h2>
+    <p class="sub">${c.sub}</p>
+    <div class="frames">
+      <div class="frame" title="Playing">${c.scene()}${pauseHud}</div>
+      <div class="frame" title="Game over">${c.scene()}${overHud}</div>
+    </div>
+    <div class="sw">${c.sw.map(h => `<span><i style="background:${h}"></i>${h}</span>`).join('')}</div>
+    <dl>${c.facts.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
+  </section>`);
+}
+
+document.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.seg button').forEach(x => x.classList.toggle('on', x === b));
+  document.body.classList.toggle('tablet', b.dataset.r === 'tablet');
+});
+</script>
+</body>
+</html>
