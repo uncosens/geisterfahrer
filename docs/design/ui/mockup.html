@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Geisterfahrer UI Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;700;900&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#111214; --card:#1a1b1e; --line:#2a2c30; --text:#e9e9ea; --muted:#9a9ca1; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  main { max-width:1500px; margin:0 auto; padding:24px 16px 40px; }
+  h1 { margin:0 0 4px; font-size:20px; font-weight:650; }
+  .sub { color:var(--muted); margin:0 0 20px; }
+  h2 { font-size:15px; margin:24px 0 10px; }
+  .row { display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start; }
+  figure { margin:0; color:var(--muted); font-size:12px; }
+  .screen { position:relative; overflow:hidden; border:3px solid #000; border-radius:14px; box-shadow:0 0 0 1px var(--line); }
+  .canvas { position:absolute; left:0; top:0; transform-origin:0 0; font-family:Inter,system-ui,sans-serif; color:#fff; }
+  .canvas div { position:absolute; }
+  .t { display:flex; white-space:nowrap; font-variant-numeric:tabular-nums; text-shadow:0 3px 8px rgba(0,0,0,.55); line-height:1; }
+  .btn { border-radius:44px; display:grid; place-items:center; }
+  .btn.p { background:#3D7BFF; }
+  .btn.s { background:rgba(255,255,255,.10); box-shadow:inset 0 0 0 4px rgba(255,255,255,.55); }
+  .cut { background:#000; }
+  img { display:block; width:100%; height:100%; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Geisterfahrer — UI mockup</h1>
+  <p class="sub">Every element is placed with the uGUI anchor / pivot / pos / size from ui-spec.md, on the canvas size Unity gives at Match 0.5. The 20:9 frame has a simulated 90-unit camera cutout on the left (safe area).</p>
+  <div id="out"></div>
+</main>
+<script>
+// Canvas Scaler, Scale With Screen Size 1920x1080, match 0.5 -> geometric mean of both ratios.
+const RATIOS = [['16:9', 1920, 1080, 0], ['20:9', 2400, 1080, 90], ['4:3', 2048, 1536, 0]];
+const DISPLAY_H = 300;
+
+// Place like uGUI: anchor a, pivot p, anchoredPosition pos (y up), sizeDelta size, in a parent of PW x PH.
+function put(parent, PW, PH, a, p, pos, size, html = '', css = '') {
+  const d = document.createElement('div');
+  const [w, h] = size;
+  d.style.cssText = `left:${a[0] * PW + pos[0] - p[0] * w}px;top:${(1 - a[1]) * PH - pos[1] - (1 - p[1]) * h}px;width:${w}px;height:${h}px;${css}`;
+  d.innerHTML = html;
+  parent.appendChild(d);
+  return d;
+}
+const C = [.5, .5], TL = [0, 1], TC = [.5, 1], TR = [1, 1];
+const icon = (n, op = 1) => `<img src="icons/${n}.svg" style="opacity:${op}">`;
+const star = `<svg viewBox="0 0 24 24" width="100%" height="100%"><path d="M12 3.2l2.6 5.5 6 .8-4.4 4.1 1.1 5.9L12 16.6l-5.3 2.9 1.1-5.9-4.4-4.1 6-.8z" fill="#2FD27A"/></svg>`;
+const txt = (s, size, weight, align = 'center', valign = 'center', color = '#fff', extra = '') =>
+  `<div class="t" style="position:static;width:100%;height:100%;justify-content:${align};align-items:${valign};font-size:${size}px;font-weight:${weight};color:${color};${extra}">${s}</div>`;
+const unit = (s, size, a = .75) => `<span style="font-size:${size}px;opacity:${a};font-weight:600">${s}</span>`;
+
+// Simple stand-in for the 3D scene: sky, haze, fields, road in perspective, guardrails, player car.
+function scene(W, H) {
+  const hz = H * .4, vx = W / 2, cy = H;
+  const road = (k) => { const t = k / 3; return [vx - 14 + 28 * t, W * .5 - 1250 + 2500 * t]; };
+  let lanes = '';
+  for (let k = 1; k < 3; k++) { const [x1, x2] = road(k); lanes += `<line x1="${x1}" y1="${hz}" x2="${x2}" y2="${cy}" stroke="#E9E9E4" stroke-width="10" stroke-dasharray="60 120" opacity=".85"/>`; }
+  const [l1, l2] = road(0), [r1, r2] = road(3);
+  return `<svg width="${W}" height="${H}" style="position:absolute;left:0;top:0">
+    <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5E8FC6"/><stop offset="1" stop-color="#C9D6E2"/></linearGradient></defs>
+    <rect width="${W}" height="${hz + 2}" fill="url(#sky)"/>
+    <path d="M0 ${hz} ${[...Array(24)].map((_, i) => `L${i * W / 23} ${hz - 10 - (i * 37 % 23)}`).join(' ')} L${W} ${hz}Z" fill="#3E5233"/>
+    <rect y="${hz}" width="${W}" height="${H - hz}" fill="#6F8A3E"/>
+    <polygon points="0,${hz + 20} ${W},${hz + 26} ${W},${hz + 60} 0,${hz + 52}" fill="#C8B46A" opacity=".8"/>
+    <polygon points="${l1 - 6},${hz} ${r1 + 6},${hz} ${r2 + 160},${cy} ${l2 - 160},${cy}" fill="#5D6E3C"/>
+    <polygon points="${l1},${hz} ${r1},${hz} ${r2},${cy} ${l2},${cy}" fill="#55575B"/>
+    <line x1="${l1}" y1="${hz}" x2="${l2}" y2="${cy}" stroke="#E9E9E4" stroke-width="16"/>
+    <line x1="${r1}" y1="${hz}" x2="${r2}" y2="${cy}" stroke="#E9E9E4" stroke-width="16"/>
+    ${lanes}
+    <line x1="${l1 - 4}" y1="${hz - 2}" x2="${l2 - 120}" y2="${cy - 60}" stroke="#A9AFB5" stroke-width="22"/>
+    <line x1="${r1 + 4}" y1="${hz - 2}" x2="${r2 + 120}" y2="${cy - 60}" stroke="#A9AFB5" stroke-width="22"/>
+    <rect x="0" y="${hz - 1}" width="${W}" height="30" fill="#C9D6E2" opacity=".55"/>
+    <g transform="translate(${vx} ${H * .83})">
+      <ellipse cx="0" cy="110" rx="300" ry="34" fill="#000" opacity=".35"/>
+      <path d="M-270 100 C-280 40 -250 -10 -190 -30 C-120 -90 120 -90 190 -30 C250 -10 280 40 270 100Z" fill="#3D7BFF"/>
+      <path d="M-150 -38 C-90 -78 90 -78 150 -38Z" fill="#1A1F26"/>
+      <rect x="-250" y="20" width="500" height="16" rx="8" fill="#8E1C1F"/>
+      <rect x="-230" y="92" width="80" height="30" rx="8" fill="#1B1B1B"/><rect x="150" y="92" width="80" height="30" rx="8" fill="#1B1B1B"/>
+    </g>
+  </svg>`;
+}
+
+function build(name, rw, rh, cut, screen) {
+  const s = Math.sqrt((rw / 1920) * (rh / 1080));
+  const W = Math.round(rw / s), H = Math.round(rh / s);
+  const k = DISPLAY_H / H;
+  const fig = document.createElement('figure');
+  const box = document.createElement('div');
+  box.className = 'screen';
+  box.style.cssText = `width:${W * k}px;height:${DISPLAY_H}px`;
+  const cv = document.createElement('div');
+  cv.className = 'canvas';
+  cv.style.cssText = `width:${W}px;height:${H}px;transform:scale(${k})`;
+  cv.innerHTML = scene(W, H);
+  box.appendChild(cv);
+  fig.appendChild(box);
+  fig.insertAdjacentHTML('beforeend', `<figcaption>${name} · canvas ${W} × ${H}</figcaption>`);
+
+  const dim = a => put(cv, W, H, [0, 0], [0, 0], [0, 0], [W, H], '', `background:rgba(5,7,10,${a})`);
+  const edge = (side, a) => {
+    const g = { l: `left:0;top:0;width:220px;height:${H}px;background:linear-gradient(90deg,rgba(255,77,79,${a}),transparent)`,
+                r: `right:0;top:0;width:220px;height:${H}px;background:linear-gradient(270deg,rgba(255,77,79,${a}),transparent)` }[side];
+    const d = document.createElement('div'); d.style.cssText = g; cv.appendChild(d);
+  };
+  if (screen === 'start') dim(.40);
+  if (screen === 'pause') dim(.55);
+  if (screen === 'over') dim(.60);
+  if (screen === 'hud') edge('r', .3);
+
+  // Safe area container.
+  const SW = W - cut, SH = H;
+  const sa = put(cv, W, H, [0, 0], [0, 0], [cut, 0], [SW, SH]);
+  if (cut) put(cv, W, H, [0, .5], [0, .5], [0, 0], [cut, 300], '', 'border-radius:0 40px 40px 0;background:#000');
+
+  const hud = () => {
+    const g = put(sa, SW, SH, TL, [0, 1], [56, -36], [520, 152]);
+    put(g, 520, 152, TL, [0, 1], [0, 0], [330, 128], txt('297', 120, 700, 'flex-end', 'flex-end'));
+    put(g, 520, 152, TL, [0, 1], [342, -64 + 14], [180, 64], txt('km/h', 44, 600, 'flex-start', 'flex-end', 'rgba(255,255,255,.75)'));
+    put(g, 520, 152, TL, [0, 1], [4, -144], [400, 6], `<div style="position:absolute;left:0;top:0;width:${400 * 297 / 306.2}px;height:6px;border-radius:3px;background:rgba(255,255,255,.9)"></div>`, 'border-radius:3px;background:rgba(255,255,255,.2)');
+    put(sa, SW, SH, TC, [.5, 1], [0, -48], [480, 96], txt(`4.37${unit(' km', 44)}`, 80, 700));
+  };
+
+  if (screen === 'start') {
+    put(sa, SW, SH, C, C, [0, 190], [1400, 160], txt('GEISTERFAHRER', 128, 900, 'center', 'center', '#fff', 'letter-spacing:6px'));
+    const best = (x, v, u) => put(sa, SW, SH, C, C, [x, 10], [460, 72],
+      `<div class="t" style="position:static;width:100%;height:100%;justify-content:center;align-items:center;gap:12px;font-size:52px;font-weight:600"><span style="width:40px;height:40px;display:inline-block">${icon('trophy', .7)}</span><span style="opacity:.9">${v}${unit(u, 36, .7)}</span></div>`);
+    best(-260, '297.4', ' km/h'); best(260, '18.92', ' km');
+    put(sa, SW, SH, C, C, [0, -230], [208, 208], `<div style="width:96px;height:96px;margin-left:12px">${icon('play')}</div>`).className = 'btn p';
+  }
+  if (screen === 'hud') {
+    hud();
+    put(sa, SW, SH, TR, [1, 1], [-40, -28], [128, 128], `<div style="left:16px;top:16px;width:96px;height:96px;border-radius:50%;background:rgba(0,0,0,.35)"></div><div style="left:42px;top:42px;width:44px;height:44px">${icon('pause')}</div>`);
+    // Steering ring at a touch in the left half, dot pushed right.
+    put(sa, SW, SH, [0, 0], C, [420, 260], [168, 168], '', 'border-radius:50%;box-shadow:inset 0 0 0 3px rgba(255,255,255,.16)');
+    put(sa, SW, SH, [0, 0], C, [420 + 44, 260], [32, 32], '', 'border-radius:50%;background:rgba(255,255,255,.4)');
+  }
+  if (screen === 'pause') {
+    hud();
+    put(sa, SW, SH, C, C, [-128, 0], [176, 176], `<div style="width:72px;height:72px;opacity:.9">${icon('home')}</div>`).className = 'btn s';
+    put(sa, SW, SH, C, C, [128, 0], [176, 176], `<div style="width:80px;height:80px;margin-left:12px">${icon('play')}</div>`).className = 'btn p';
+  }
+  if (screen === 'over') {
+    const col = (x, ic, v, u, best, isNew) => {
+      const c = put(sa, SW, SH, C, C, [x, 120], [560, 360]);
+      put(c, 560, 360, C, C, [0, 140], [56, 56], icon(ic, .7));
+      if (isNew) put(c, 560, 360, C, C, [52, 160], [36, 36], star);
+      const col = isNew ? '#2FD27A' : '#fff';
+      put(c, 560, 360, C, C, [0, 40], [560, 140], txt(`${v}${unit(u, 48)}`, 120, 700, 'center', 'center', col));
+      put(c, 560, 360, C, C, [0, -80], [560, 64],
+        `<div class="t" style="position:static;width:100%;height:100%;justify-content:center;align-items:center;gap:14px;font-size:52px;font-weight:600;color:${isNew ? '#2FD27A' : 'rgba(255,255,255,.75)'}"><span style="width:36px;height:36px;display:inline-block">${icon('trophy', .7)}</span>${best}</div>`);
+    };
+    col(-320, 'speed', '297.4', ' km/h', '297.4 km/h', true);
+    col(320, 'distance', '4.37', ' km', '18.92 km', false);
+    put(sa, SW, SH, C, C, [-128, -300], [176, 176], `<div style="width:72px;height:72px;opacity:.9">${icon('home')}</div>`).className = 'btn s';
+    put(sa, SW, SH, C, C, [128, -300], [176, 176], `<div style="width:80px;height:80px">${icon('retry')}</div>`).className = 'btn p';
+  }
+  return fig;
+}
+
+const out = document.getElementById('out');
+[['start', 'Start'], ['hud', 'HUD (touch ring at a left-half touch, light-hit flash on the right)'], ['pause', 'Pause'], ['over', 'Game over (new best top speed in green)']].forEach(([id, label]) => {
+  out.insertAdjacentHTML('beforeend', `<h2>${label}</h2>`);
+  const row = document.createElement('div'); row.className = 'row';
+  RATIOS.forEach(([n, w, h, cut]) => row.appendChild(build(n, w, h, cut, id)));
+  out.appendChild(row);
+});
+</script>
+</body>
+</html>

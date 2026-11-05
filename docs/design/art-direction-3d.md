@@ -85,6 +85,8 @@ outer guardrail | edge strip 0.5–0.75 m | lane 3 | lane 2 | lane 1 | edge stri
 
 ## 5. HUD over 3D
 
+> Exact layout, sizes and colours now live in `ui-spec.md` (it wins over this section). Speedometer style **a** is chosen.
+
 User decision: no points, no near miss, no combo. The HUD shows only **speed (km/h)**, **distance (km)** and pause. No hint text, no tutorial lines, no visible joystick.
 
 Fixed meaning colours:
