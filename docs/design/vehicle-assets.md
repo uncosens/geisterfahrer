@@ -60,7 +60,7 @@ Most free 992 models on Sketchfab are 116k–1M triangles (render models). They 
 
 | | Model | Licence | Tris | Cut | Notes |
 |---|---|---|---|---|---|
-| **1st** | [Low Poly BMW M5 F90](https://sketchfab.com/3d-models/low-poly-bmw-m5-f90-87102e4f8f2b42c087ff1a4423b5cccd) by ynesolefru | CC BY | 5.7k | none | Modern German sedan, inside budget. The same author also makes stylised cars, so check the preview for a realistic look. |
+| **1st** | [Low Poly BMW M5 F90](https://sketchfab.com/3d-models/low-poly-bmw-m5-f90-87102e4f8f2b42c087ff1a4423b5cccd) by kulonee (@ynesolefru) | CC BY | 5.7k | none | Modern German sedan, inside budget. The same author also makes stylised cars, so check the preview for a realistic look. |
 | Fallback | [Low Poly Car - BMW E46 1998](https://sketchfab.com/3d-models/low-poly-car-bmw-e46-1998-d9bfd8126e754164b48ded833c017bbf) by roh3d | CC BY | 18.4k | about 45 % | Classic 3 Series. |
 
 ## Van — Mercedes Sprinter
@@ -132,7 +132,7 @@ The repo is public, but **model files stay out of git**. Each user downloads the
 | Player (fallback) | 2019 911 Carrera 4S (992) | CC BY-NC-SA 4.0 | Non-commercial only, same licence | "2019 Porsche 911 Carrera 4S (992)" (https://sketchfab.com/3d-models/4e324fdfada24355aba3f34cf09a9552) by ddiaz-design (https://sketchfab.com/ddiaz-design), licensed under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/) |
 | Compact (1st) | 1998 Volkswagen Golf Mk4 | CC BY 4.0 | Yes, with credit | "1998 Volkswagen Golf Mk4" (https://sketchfab.com/3d-models/ec7b2f2fd567419a965db5b07b777c0c) by ImperialBlue3D (https://sketchfab.com/ImperialBlue3D), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) |
 | Compact (fallback) | Volkswagen Golf (Plus) 2011 | CC BY 4.0 | Yes, with credit | "Volkswagen golf (PLUS) 2011" (https://sketchfab.com/3d-models/2dd0f5839b7f4b6287761c962ade7dc0) by Preview2SEBIT69 (https://sketchfab.com/Preview2SEBIT69), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) |
-| Sedan (1st) | Low Poly BMW M5 F90 | CC BY 4.0 | Yes, with credit | "Low Poly BMW M5 F90" (https://sketchfab.com/3d-models/87102e4f8f2b42c087ff1a4423b5cccd) by ynesolefru (https://sketchfab.com/ynesolefru), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) |
+| Sedan (1st) | Low Poly BMW M5 F90 | CC BY 4.0 | Yes, with credit | "Low Poly BMW M5 F90" (https://sketchfab.com/3d-models/87102e4f8f2b42c087ff1a4423b5cccd) by kulonee (https://sketchfab.com/ynesolefru), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) |
 | Sedan (fallback) | Low Poly Car - BMW E46 1998 | CC BY 4.0 | Yes, with credit | "Low Poly Car - BMW E46 1998" (https://sketchfab.com/3d-models/d9bfd8126e754164b48ded833c017bbf) by roh3d (https://sketchfab.com/roh3d), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) |
 | Van (1st) | Mercedes Sprinter Passenger | CC BY 4.0 | Yes, with credit | "Mercedes Sprinter Passenger" (https://sketchfab.com/3d-models/d3029b62317c4956bd0a28140ffef83d) by kuwalol93 (https://sketchfab.com/kuwalol93), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) |
 | Van (fallback) | Mercades Sprinter car LOW POLY | CC BY 4.0 | Yes, with credit | "Mercades Sprinter car LOW POLY" (https://sketchfab.com/3d-models/9f1459c92b2447f2a3c1476d11fbbf9a) by randomcarguy (https://sketchfab.com/randomcarguy), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) |

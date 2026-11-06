@@ -16,7 +16,7 @@ The user asked the director to decide open points alone and report at the end. E
 | 10 | Danger feedback (designer) | Light hit = amber `#FFB020` edge; crash = white flash + grey-out; no red in UI or feedback | Red now means "my car", so danger must use another hue and shape |
 | 11 | Speedometer (designer) | Round 911-style dial top-right, 0–330 km/h, white needle, digital km/h inside; pause moves top-left | User request; white needle because red is the car; 330 covers the 327 km/h downhill ceiling |
 | 12 | Post-processing (designer) | One LDR Volume on: Color Adjustments, White Balance, Vignette; no bloom/HDR | Tunnel exposure and crash grey-out need it; about one LUT pass |
-| 13 | Skybox and asphalt (designer) | Poly Haven HDRI Dreifaltigkeitsberg; asphalt Asphalt 01 at 2.08 m | German clear-day sky; worn road texture at real scale |
+| 13 | Skybox (designer) | Poly Haven HDRI Dreifaltigkeitsberg | German clear-day sky |
 | 14 | Lane dash phase (designer) | Dashes placed by road distance `d mod 18 < 6`, not per segment | No jumps at segment seams on straights or curves |
 | 15 | Fog vs draw distance (designer) | Fog 300–1,600 m, far clip 1,650 m; vehicles fade in on their own at the spawn distance | Matches GDD 5.3 (road to 1.5 km); fog no longer hides spawning |
 | 16 | Camera FOV and height (designer) | Horizontal FOV 80° → 92° with speed (min 75°), height fixed 2.7 m, distance 6.5 → 7.2 m | Meets GDD 5.1 on every ratio; keeps the crest sight rule |
@@ -28,3 +28,4 @@ The user asked the director to decide open points alone and report at the end. E
 | 22 | Driving-feel set (designer) | On: speed FOV, throttle kick, camera lag/roll, speed shake, body pitch/roll, wheel blur swap, visible steering, speed streaks from 160 km/h, aniso 4×, all sound layers. Off: radial blur, motion blur, chromatic aberration, heat haze, lens dirt, crash smoke | About +0.5 ms GPU on the Tab S7; the off items cost more than they add |
 | 23 | Free models (designer) | Use the first pick per slot in `vehicle-assets.md`; switch the 911 to the Carrera 4S fallback only if the first pick looks too simple on screen | Least cleanup; stays inside the polygon budget |
 | 24 | Traffic paint (designer) | No red or orange traffic; add dark blue `#24324A` to the mix | Keeps the red car unique; more colour variety |
+| 25 | Road surface (user) | Photo asphalt dropped; generated calm surface: #55575C, soft tyre tracks, ±3.5 % slow variation, 60 m repeat, no normal map | The photo grain and 2 m repeat strained the eyes while driving |

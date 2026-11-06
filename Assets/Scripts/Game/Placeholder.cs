@@ -22,6 +22,41 @@ namespace Geisterfahrer.Game
             return m;
         }
 
+        // Calm generated asphalt (look-spec 6.1): no fine grain or short repeat, which strained the eyes.
+        // The road mesh has world UVs of metres / uvTile with u = 0 on the road centre; the texture spans
+        // the road width once and repeats every 60 m along it.
+        public static Material CalmAsphalt(float width, float uvTile)
+        {
+            const int W = 128, H = 256;
+            const float Repeat = 60;
+            var tex = new Texture2D(W, H, TextureFormat.RGBA32, true) { filterMode = FilterMode.Trilinear, anisoLevel = 8, wrapMode = TextureWrapMode.Repeat };
+            var px = new Color[W * H];
+            for (int y = 0; y < H; y++)
+                for (int x = 0; x < W; x++)
+                {
+                    float m = (x + 0.5f) / W * width - width / 2, v = 1;
+                    // Darker tyre tracks, 0.8 m each side of every lane centre.
+                    for (int k = 0; k < Core.Road.LaneCount; k++)
+                        for (int side = -1; side <= 1; side += 2)
+                        {
+                            float d = (m - (float)Core.Road.LaneX(k) - side * 0.8f) / 0.35f;
+                            v -= 0.07f * Mathf.Exp(-d * d);
+                        }
+                    // Slow light/dark waves along the road, periodic so the repeat has no seam.
+                    float a = 2 * Mathf.PI * y / H;
+                    v += 0.02f * Mathf.Sin(3 * a + m * 0.4f) + 0.015f * Mathf.Sin(5 * a + 1.3f - m * 0.25f);
+                    px[y * W + x] = new Color(v, v, v);
+                }
+            tex.SetPixels(px);
+            tex.Apply();
+            var mat = new Material(BaseMat) { color = Hex(0x55575C), mainTexture = tex };
+            mat.SetFloat("_Metallic", 0);
+            mat.SetFloat("_Smoothness", 0.25f);
+            mat.mainTextureScale = new Vector2(uvTile / width, uvTile / Repeat);
+            mat.mainTextureOffset = new Vector2(0.5f, 0);
+            return mat;
+        }
+
         static Material GlassMat => Mat(Hex(0x1A1F26), 0, 0.95f);
         static Material Tyre => Mat(Hex(0x1B1B1B), 0, 0.25f);
         static Material HeadLight => Mat(Hex(0xFFF6E0), 0, 0.9f);

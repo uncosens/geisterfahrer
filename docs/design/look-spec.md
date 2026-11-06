@@ -90,22 +90,18 @@ outer guardrail | edge strip 0.75 | lane 4 | lane 3 | lane 2 | lane 1 | edge str
 - Lane 4 is the slow lane (trucks, buses), next to the outer rail. Lane 1 is the fast lane, next to the median.
 - Keep the code parametric (`laneCount`, `laneWidth`, `edgeStrip`). The planner's GDD v0.4 is the source of truth if it differs.
 
-### 6.1 Asphalt (CC0)
+### 6.1 Asphalt (generated, user decision)
 
-[Asphalt 01](https://polyhaven.com/a/asphalt_01) by Poly Haven: a worn road surface, real size **2.08 m**. Download at 1K: Diffuse, Normal (GL), Roughness.
-
-Fallback: [Asphalt 06](https://polyhaven.com/a/asphalt_06) (3.0 m tile, browner).
+The photo asphalt (Poly Haven Asphalt 01, 2.08 m tile) is **dropped**. Its fine grain and short repeat strained the user's eyes while driving. The road is now a calm generated surface (`RoadView.RoadTex`):
 
 | Setting | Value |
 |---|---|
-| Shader | URP/Lit, Opaque |
-| Base Map | diffuse 1024², tint `#FFFFFF` |
-| Metallic map | packed: R 0, A = `1 − roughness`; Metallic 0, Smoothness source = Metallic Alpha, Smoothness ×**0.6** |
-| Normal map | strength **0.6** |
-| Tiling | world-space UVs, **1 tile per 2.08 m** in both x and z (UV = position / 2.08) |
-| Tyre tracks | second Base Map tint by vertex colour: lane centre ±0.9 m multiplied by **0.88** (darker), 0.6 m wide bands |
-| Edge strip (0.5–0.75 m) | same material, vertex colour ×**1.06** (lighter, less worn) |
-| Compression | ASTC 6×6 (colour), ASTC 4×4 (normal) |
+| Shader | URP/Lit, Opaque, Metallic 0, Smoothness **0.25**, no normal map |
+| Base colour | **`#55575C`** (dark asphalt grey) × the generated shade texture |
+| Shade texture | 128 × 256, made at start-up, Trilinear, aniso 8. It spans the full road width once (no repeat across) and repeats every **60 m** along the road. |
+| Tyre tracks | two soft darker bands per lane, ±0.8 m from the lane centre, Gaussian width 0.35 m, **−7 %** |
+| Slow variation | two sine waves along the road (3 and 5 per 60 m), **±3.5 %** in total, periodic so the repeat has no seam |
+| No | photo grain, high-frequency noise, cracks, patches or a normal map. Anything finer than about 1 m would flicker at speed. |
 
 ### 6.2 Lane marks
 
@@ -448,7 +444,7 @@ Estimated extra cost on the Tab S7: **about 0.5 ms GPU** (streak overdraw and an
 ## Sources
 
 - Poly Haven HDRIs [Dreifaltigkeitsberg](https://polyhaven.com/a/dreifaltigkeitsberg) and [Hausdorf Clear Sky](https://polyhaven.com/a/hausdorf_clear_sky)
-- Poly Haven textures [Asphalt 01](https://polyhaven.com/a/asphalt_01) and [Asphalt 06](https://polyhaven.com/a/asphalt_06)
+- Poly Haven textures [Asphalt 01](https://polyhaven.com/a/asphalt_01) and [Asphalt 06](https://polyhaven.com/a/asphalt_06): no longer used (road is generated, §6.1)
 - Poly Haven models [Island Tree 02](https://polyhaven.com/a/island_tree_02) and [Fir Tree 01](https://polyhaven.com/a/fir_tree_01)
 - ambientCG [Grass004](https://ambientcg.com/view?id=Grass004) and [Concrete034](https://ambientcg.com/view?id=Concrete034)
 - Poly Haven textures [Concrete Slab Wall](https://polyhaven.com/a/concrete_slab_wall), [Concrete Wall 003](https://polyhaven.com/a/concrete_wall_003), [Rough Concrete](https://polyhaven.com/a/rough_concrete) and [Rock Face 03](https://polyhaven.com/a/rock_face_03)
