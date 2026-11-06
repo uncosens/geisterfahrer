@@ -6,10 +6,10 @@ namespace Geisterfahrer.Core
     public class Vehicle
     {
         public int Type, Lane;
-        public double Z, Speed; // Speed = own speed in m/s, toward the player
+        public double Z, Speed, Offset; // Z = road distance ahead of the player; Speed = own speed in m/s, toward the player
         public bool Touching;
         public VehicleType T => Road.Types[Type];
-        public double X => Road.LaneX(Lane);
+        public double X => Road.LaneX(Lane) + Offset;
     }
 
     // One run: player car, traffic, contacts, records. The player stays at z = 0; the world moves toward it.
@@ -26,6 +26,8 @@ namespace Geisterfahrer.Core
         public bool Spawning = true;
         public double LastImpulse; // last survived or fatal hit, for feedback
         public int Hits;
+        public double HitX, HitZ, HitNx; // last contact point (road space) and its side, for effects
+        public bool Scraping;             // touched a rail or vehicle during the last Step
         bool[] railTouching = new bool[2];
         double nextSpawnTime;
 
@@ -35,6 +37,7 @@ namespace Geisterfahrer.Core
             TopSpeed = Car.TopSpeed(t);
             rng = new Random(seed);
             V = MaxSpeed = t.StartSpeedKmh / 3.6;
+            X = Road.LaneX(2);
         }
 
         public double SpawnDistance => Math.Max(T.MinSpawnDistance, (V + Road.FastestTrafficKmh / 3.6) * T.SpawnWarningTime);
@@ -42,6 +45,7 @@ namespace Geisterfahrer.Core
         public void Step(double dt, double steer, bool throttle)
         {
             if (Crashed) return;
+            Scraping = false;
             double maxMove = (V + 60) * dt + Math.Abs(Side) * dt; // 60 m/s > fastest traffic
             int n = Math.Max(1, (int)Math.Ceiling(maxMove / T.MaxStepMove));
             double h = dt / n;
@@ -77,7 +81,7 @@ namespace Geisterfahrer.Core
                 int side = s == 0 ? -1 : 1;
                 double depth = Contacts.RailDepth(X, Yaw, hl, hw, side);
                 if (depth > 0) Hit(ref railTouching[s], side, 0, depth, side * Side, double.PositiveInfinity, h);
-                else if (railTouching[s] &= depth > -RailTouchGap) V = Math.Max(0, V - T.ScrapeKmhPerSecond / 3.6 * h);
+                else if (railTouching[s] &= depth > -RailTouchGap) { V = Math.Max(0, V - T.ScrapeKmhPerSecond / 3.6 * h); Scraping = true; }
             }
             foreach (var v in Vehicles)
             {
@@ -94,6 +98,8 @@ namespace Geisterfahrer.Core
         // First touch: impulse decides crash or survive. Still touching: scrape.
         void Hit(ref bool touching, double nx, double nz, double depth, double vn, double otherMass, double h)
         {
+            HitX = X + nx * Road.PlayerWidth / 2; HitZ = nz * Road.PlayerLength / 2; HitNx = nx;
+            Scraping = true;
             if (!touching && vn > 0)
             {
                 double j = Contacts.Impulse(T.Mass, otherMass, vn);
@@ -132,24 +138,25 @@ namespace Geisterfahrer.Core
             var t = Road.Types[type];
             double speed = (t.MinKmh + rng.NextDouble() * (t.MaxKmh - t.MinKmh)) / 3.6;
             double z = SpawnDistance;
-            var tried = new bool[3];
-            for (int k = 0; k < 3; k++)
+            var tried = new bool[Road.LaneCount];
+            for (int k = 0; k < Road.LaneCount; k++)
             {
-                int lane = Pick(i => tried[i] ? 0 : t.LaneWeights[i], 3);
+                int lane = Pick(i => tried[i] ? 0 : t.LaneWeights[i], Road.LaneCount);
                 if (lane < 0) break;
                 tried[lane] = true;
-                var v = new Vehicle { Type = type, Lane = lane, Z = z, Speed = speed };
+                double slack = (Road.LaneWidth - t.Width) / 2 * Road.LaneOffsetShare;
+                var v = new Vehicle { Type = type, Lane = lane, Z = z, Speed = speed, Offset = (rng.NextDouble() * 2 - 1) * slack };
                 if (Fits(v)) { Vehicles.Add(v); return true; }
             }
             return false;
         }
 
         // Same lane: keep a gap and never let a faster vehicle catch a slower one ahead.
-        // Other lanes: never let all 3 lanes be blocked at the same time before the vehicle reaches the player.
+        // Other lanes: never let all lanes be blocked at the same time before the vehicle reaches the player.
         bool Fits(Vehicle n)
         {
             double horizon = n.Z / Math.Max(V + n.Speed, 1);
-            bool[] blocked = new bool[3];
+            var blocked = new bool[Road.LaneCount];
             foreach (var v in Vehicles)
             {
                 if (v.Lane == n.Lane)
@@ -161,7 +168,7 @@ namespace Geisterfahrer.Core
                 else if (Meets(n, v, horizon)) blocked[v.Lane] = true;
             }
             blocked[n.Lane] = true;
-            return !(blocked[0] && blocked[1] && blocked[2]);
+            return Array.IndexOf(blocked, false) >= 0;
         }
 
         // Do the two vehicles' blocked z ranges overlap at some time in [0, horizon]?

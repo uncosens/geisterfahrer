@@ -22,6 +22,7 @@ namespace Geisterfahrer.Tests
         {
             var r = NewRun(playerKmh);
             var t = Road.Types[type];
+            r.X = Road.LaneX(1);
             r.Vehicles.Add(new Vehicle { Type = type, Lane = 1, Z = (Road.PlayerLength + t.Length) / 2 + 0.3, Speed = vehicleKmh / 3.6 });
             for (int i = 0; i < 10 && !r.Crashed; i++) r.Step(Dt, 0, false);
             return r;
@@ -108,6 +109,7 @@ namespace Geisterfahrer.Tests
         public void NoTunnelingAtTopClosingSpeed()
         {
             var r = NewRun(306);
+            r.X = Road.LaneX(1);
             r.Vehicles.Add(new Vehicle { Type = Compact, Lane = 1, Z = 60, Speed = 180 / 3.6 });
             for (int i = 0; i < 60 && !r.Crashed; i++) r.Step(Dt, 0, true);
             Assert.IsTrue(r.Crashed);
@@ -117,8 +119,9 @@ namespace Geisterfahrer.Tests
         public void StoppedCarDoesNotMoveSideways()
         {
             var r = NewRun(0);
+            double x0 = r.X;
             for (int i = 0; i < 60; i++) r.Step(Dt, 1, false);
-            Assert.AreEqual(0, r.X, 1e-9);
+            Assert.AreEqual(x0, r.X, 1e-9);
             Assert.AreEqual(0, r.Yaw, 1e-9);
         }
 
@@ -155,6 +158,7 @@ namespace Geisterfahrer.Tests
         {
             var t = new Tuning { CrashImpulse = double.MaxValue };
             var r = new Run(t, 1);
+            r.V = 100 / 3.6;
             int spawned = 0;
             for (int i = 0; i < 60 * 300; i++)
             {
@@ -164,10 +168,10 @@ namespace Geisterfahrer.Tests
                 for (double z = 10; z < r.SpawnDistance; z += 1)
                 {
                     int blocked = 0;
-                    for (int lane = 0; lane < 3; lane++)
+                    for (int lane = 0; lane < Road.LaneCount; lane++)
                         foreach (var v in r.Vehicles)
                             if (v.Lane == lane && Math.Abs(v.Z - z) < v.T.Length / 2) { blocked++; break; }
-                    Assert.Less(blocked, 3, $"wall at z={z} t={r.Time:F1}");
+                    Assert.Less(blocked, Road.LaneCount, $"wall at z={z} t={r.Time:F1}");
                 }
             }
             Assert.Greater(spawned, 200);

@@ -1,6 +1,6 @@
 # Art Direction — Realistic 3D (chosen)
 
-Decision: the user chose a realistic version of candidate b. The game uses a 3D chase camera and is built in Unity 6.3 URP for Android phones and tablets. One map: a German Autobahn by day. The game is for the user's **personal use only** (no store release), so real vehicle designs are allowed: the player car is a Porsche 911 (992). Vehicles: see `vehicle-assets.md`.
+Decision: the user chose a realistic version of candidate b. The game uses a 3D chase camera and is built in Unity 6.3 URP for Android phones and tablets. One map: a German Autobahn by day. The game is for the user's **personal use only** (no store release), so real vehicle designs are allowed: the player car is a **red** Porsche 911 (992, Guards Red-like). Vehicles: see `vehicle-assets.md`.
 
 Goal: it should look like a real motorway on a clear day. Realism comes from good light, believable materials and correct proportions. It does not come from heavy effects that mobile GPUs can't afford.
 
@@ -10,17 +10,16 @@ Goal: it should look like a real motorway on a clear day. Realism comes from goo
 
 | Setting | Value | Note |
 |---|---|---|
-| Position | 5.5 m behind, 1.9 m above the car's centre | Car fills about the lower 1/4 of the screen |
-| Look-at | 12 m ahead of the car, 0.8 m high | Horizon at about 40 % from the top |
-| Horizontal FOV | locked at **75°** | Unity uses vertical FOV; compute it from the aspect ratio each frame |
-| Speed FOV | +6° at top speed, eased | Gives a sense of speed cheaply |
-| Follow | position damped (~0.15 s), yaw damped more (~0.3 s), no roll | Steering feels responsive without nausea |
-| Near / far clip | 0.3 m / 600 m | Fog hides the far end |
+| Position | 6.5 m behind (7.2 m at top speed), **2.7 m** high | Dev plan values; the height stays for the GDD crest sight rule |
+| Look-at | 14 m ahead of the car on the road surface, 0.8 m high | Pitches with crests and dips |
+| Horizontal FOV | **80° → 92°** with speed, never under 75° (GDD 5.1) | Exact formula: `look-spec.md` §11.1 |
+| Follow | x spring about 0.3 s, yaw spring, small roll (max 1.8° steering + 50 % of road bank) | `look-spec.md` §5, §11.1 |
+| Near / far clip | 0.3 m / 1,650 m | Road drawn to about 1.5 km (GDD 5.3) |
 | Shake | small on a light hit, strong on a crash (see section 7) | Taste setting; scaled by percent |
 
 **Orientation: landscape only** (user decision). Both landscape rotations are allowed; portrait is not supported.
 - The controls split the screen into left (steer) and right (throttle) halves. That is the natural two-thumb landscape grip.
-- A chase camera needs width to show all 3 lanes and both guardrails (about 12.5 m).
+- A chase camera needs width to show all 4 lanes and both guardrails (16.5 m).
 
 **Ratios.** Locking the horizontal FOV keeps all lanes visible on every device:
 - 20:9 phones: same width of road, less sky.
@@ -41,7 +40,7 @@ Goal: it should look like a real motorway on a clear day. Realism comes from goo
   - A small set of box probes under overpasses so cars darken there.
   - No realtime reflection probes.
 - **Sky:** HDRI skybox of a clear day (Poly Haven, CC0). The same HDRI drives ambient light.
-- **Fog:** linear distance fog, light blue-grey, starting at about 250 m. It hides the far clip and adds air.
+- **Fog:** linear distance fog, light blue-grey, from 300 m to 1,600 m (road drawn to about 1.5 km, GDD 5.3). Vehicles fade in at the spawn distance on their own; they do not use the fog.
 
 ## 3. Post-processing (mobile budget)
 
@@ -59,17 +58,19 @@ Target: a stable 60 fps on high, and 30 fps minimum on low. The speed feel comes
 
 ## 4. Road and scenery
 
-The cross-section follows GDD v0.3: **no hard shoulder**, 3 lanes, about 12.5 m from rail to rail. It stays parametric so the lane count can change.
+The cross-section has **no hard shoulder** and **4 lanes** (user decision), 16.5 m from rail to rail. It stays parametric so the lane count can change. Exact numbers: `look-spec.md` §6.0.
 
 Seen from the player (oncoming traffic drives toward the camera):
 
 ```
-outer guardrail | edge strip 0.5–0.75 m | lane 3 | lane 2 | lane 1 | edge strip 0.5–0.75 m | median guardrail
+outer guardrail | edge strip 0.75 m | lane 4 | lane 3 | lane 2 | lane 1 | edge strip 0.75 m | median guardrail
 ```
+
+The road also has curves, hills, tunnels, viaducts and overpasses (GDD v0.4 geometry, `look-spec.md` §10 look).
 
 | Element | Spec | Material |
 |---|---|---|
-| Lanes | 3 × 3.75 m | Asphalt PBR, tiling 2K. Darker worn tire tracks in each lane centre. Faint patch repairs. |
+| Lanes | 4 × 3.75 m | Asphalt PBR, tiling 2K. Darker worn tire tracks in each lane centre. Faint patch repairs. |
 | Edge strips | 0.5–0.75 m between edge line and guardrail, on both sides | Same asphalt, slightly lighter, less worn, a little grit near the rail |
 | Lane lines | white, 0.15 m wide, **6 m dash / 12 m gap** | Separate thin mesh strips, slightly raised, merged into one mesh per road segment |
 | Edge lines | white solid, 0.30 m (not verified, see sources) | As above |
@@ -78,14 +79,17 @@ outer guardrail | edge strip 0.5–0.75 m | lane 3 | lane 2 | lane 1 | edge stri
 | Median | ~3 m grass between two guardrails, low bushes | Grass texture, billboard bushes |
 | Verge | grass slope, then trees or fields; optional noise walls near towns | Tree impostors beyond 80 m |
 | Blue signs | RAL 5017-like blue `#0E518D`, white border. On gantries and on posts on the verge. | Personal-use game, so real German town names are fine. Use an OFL DIN-style face (D-DIN). |
-| Overpasses | concrete bridges every 1–2 km, with piers in the median and the verge | Concrete PBR, baked shadow on the road below |
+| Overpasses | concrete bridges crossing above, piers in the median and abutments at the verges | Concrete PBR, baked shadow on the road below (`look-spec.md` §10.5) |
+| Tunnels | twin-tube style, light lower wall band, LED luminaire rows, entry/exit exposure | `look-spec.md` §10.3 |
+| Viaducts | the player drives on a high bridge with a concrete cap and a thin railing; valley, river and piers below | `look-spec.md` §10.4 |
+| Curves and hills | banked curves, crests, layered hill horizon | `look-spec.md` §10.1–10.2 |
 | Road segments | 120 m straight or gently curved pieces, recycled (endless road) | One material atlas for all scenery props |
 
 **Texture sources:** CC0 asphalt, concrete and grass from Poly Haven or ambientCG. Use ASTC compression: 6×6 for colour and 4×4 for normal maps.
 
 ## 5. HUD over 3D
 
-> Exact layout, sizes and colours now live in `ui-spec.md` (it wins over this section). Speedometer style **a** is chosen.
+> Exact layout, sizes and colours now live in `ui-spec.md` (it wins over this section). The speedometer is now a round 911-style dial in the top-right (user decision), replacing styles a and b below.
 
 User decision: no points, no near miss, no combo. The HUD shows only **speed (km/h)**, **distance (km)** and pause. No hint text, no tutorial lines, no visible joystick.
 
@@ -93,8 +97,10 @@ Fixed meaning colours:
 
 | Meaning | Colour | Where |
 |---|---|---|
-| Player | blue `#3D7BFF` | Player car paint base (metallic, so it shifts with light) and primary buttons |
-| Crash / danger | red `#FF4D4F` | Light-hit edge flicker and crash flash (section 7), game over accent |
+| Player | **red** `#C8102E` (Guards Red-like) | Player car paint only. No other red on the road or in the UI. |
+| UI accent | blue `#3D7BFF` | Primary buttons only |
+| Light hit | amber `#FFB020` | Hit-side edge flash (section 7) |
+| Crash | white flash, then grey-out | All edges white, scene saturation → −100. Told by shape and colour loss, not by a hue, so it never looks like the red car. |
 | Good / new best | green `#2FD27A` | Proposal: with near miss gone, green marks a **new best** on the game-over screen |
 
 **Layout (landscape):**
@@ -158,7 +164,7 @@ Both styles sit **top-left**, mirroring the pause button. In landscape the lower
   ╲ km/h╱
 ```
 
-Designer's pick: **a**. It stays minimal, takes little space at the top edge and keeps the HUD calm. Neither style uses red at high speed, because red is reserved for danger.
+Superseded: the user chose a round 911-style dial top-right (`ui-spec.md` 6.2). It uses no red, because red belongs to the player car.
 
 ## 6. Performance targets (art side)
 
@@ -167,7 +173,7 @@ Designer's pick: **a**. It stays minimal, takes little space at the top edge and
 - Textures:
   - Vehicles: 1024² max per vehicle (dev plan §6), shared atlases where possible.
   - Scenery: one 2K atlas plus a tiling asphalt texture.
-- LOD groups on every vehicle and prop. Traffic is culled beyond about 300 m, hidden by fog.
+- LOD groups on every vehicle and prop. Traffic exists only inside the spawn distance (400–495 m, GDD 5.3), so it is never drawn further; road props use LOD2 or are culled beyond 600 m.
 
 ## 7. Collision feedback
 
@@ -179,7 +185,7 @@ The game grades hits by impact (the planner and developer own the thresholds). T
 | Sound (for the dev/sound brief) | Metal scrape, length matches contact time | Loud impact, glass break, then tire skid fade |
 | Camera | Small shake (≈ 0.1 s, low amplitude), no FOV change | Strong shake, then a 0.6–1.0 s slow-motion beat. The camera keeps following, then holds as the car spins or stops. |
 | Car body | A **scratch decal** appears on the hit side and stays for the run. After 3+ light hits the side looks visibly battered. | A **dent** (see below), bonnet or bumper shifted. The car spins or rolls out by physics. |
-| Screen | Thin red `#FF4D4F` edge flicker on the hit side only, 0.15 s, about 25 % opacity | Full red edge flash, then fade to the game-over dim |
+| Screen | Thin amber `#FFB020` edge flicker on the hit side only, 0.15 s, about 25 % opacity | White flash on all edges, scene greys out, then fade to the game-over dim |
 | Speed | The speed number dips at once (the visible "cost" of the hit) | Speed drops to 0. Game over shows after the slow-motion beat. |
 | Haptics | Short light vibration | One long strong vibration |
 | Other car | A small scratch decal and a little wobble; it keeps driving | It is pushed or spun by physics and stops; smoke puff from the bonnet on high tier |

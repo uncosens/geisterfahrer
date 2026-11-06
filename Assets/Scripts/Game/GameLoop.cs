@@ -2,70 +2,81 @@ using System.Collections.Generic;
 using Geisterfahrer.Core;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.Rendering.Universal;
 
 namespace Geisterfahrer.Game
 {
-    // Owns the run, syncs views, chase camera, HUD and panels. The scene only holds this component.
+    // Owns the run and syncs everything else to it: views, chase camera, HUD, feedback, sound.
     public class GameLoop : MonoBehaviour
     {
         public Tuning tuning = new Tuning();
-        [Tooltip("Optional models by vehicle type index (Compact, Sedan, Van, Bus, Truck). Empty = placeholder.")]
-        public GameObject[] vehiclePrefabs = new GameObject[0];
-        public GameObject playerPrefab;
-        public Material baseMaterial;
+        public Art art = new Art();
 
         enum State { Start, Playing, Paused, Dying, Over }
         State state = State.Start;
         Run run;
         DriveInput input;
         RoadView road;
+        Hud hud;
+        Feedback fx;
         Camera cam;
         Transform player;
-        AudioSource engine, scrape, crash;
+        AudioSource engine, scrape, crash, hit;
         readonly Dictionary<Vehicle, GameObject> views = new Dictionary<Vehicle, GameObject>();
         readonly List<Vehicle> gone = new List<Vehicle>();
         readonly List<GameObject>[] pools = new List<GameObject>[Road.Types.Length];
-        float camX, shake, dyingTime;
-        int lastHits;
-        bool newBestSpeed, newBestDist;
-        int seed;
+        float camX, camVel, dyingTime;
+        int lastHits, seed;
 
-        static readonly Color Sky = new Color(0.72f, 0.8f, 0.88f);
+        static readonly Color Sky = Placeholder.Hex(0xC9D6E2);
 
         void Awake()
         {
             Application.targetFrameRate = 60;
             Screen.sleepTimeout = SleepTimeout.NeverSleep;
+            Placeholder.BaseMat = art.baseLit;
             input = new DriveInput();
-            Placeholder.BaseMat = baseMaterial;
 
             cam = new GameObject("Camera").AddComponent<Camera>();
-            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.clearFlags = RenderSettings.skybox ? CameraClearFlags.Skybox : CameraClearFlags.SolidColor;
             cam.backgroundColor = Sky;
             cam.nearClipPlane = 0.3f;
-            cam.farClipPlane = 600;
             cam.gameObject.AddComponent<AudioListener>();
-
-            var sun = new GameObject("Sun").AddComponent<Light>();
-            sun.type = LightType.Directional;
-            sun.shadows = LightShadows.Hard;
-            sun.transform.rotation = Quaternion.Euler(50, -30, 0);
-            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(0.55f, 0.58f, 0.62f);
+            cam.gameObject.AddComponent<UniversalAdditionalCameraData>().renderPostProcessing = true;
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
             RenderSettings.fogColor = Sky;
+            if (!FindAnyObjectByType<Light>()) // the scene normally has the sun (look-spec 1)
+            {
+                var sun = new GameObject("Sun").AddComponent<Light>();
+                sun.type = LightType.Directional; sun.shadows = LightShadows.Hard;
+                sun.transform.rotation = Quaternion.Euler(40, 30, 0);
+            }
 
             road = new GameObject("Road").AddComponent<RoadView>();
-            player = playerPrefab ? Instantiate(playerPrefab).transform
-                : Placeholder.Vehicle("Player", (float)Road.PlayerLength, (float)Road.PlayerWidth, 1.3f, new Color(0.24f, 0.48f, 1f)).transform;
+            road.Init(art);
+            float pl = (float)Road.PlayerLength;
+            player = (art.player ? Placeholder.Fit(art.player, pl, "Player")
+                : Placeholder.Vehicle("Player", pl, (float)Road.PlayerWidth, 1.3f, Placeholder.PlayerPaint)).transform;
             for (int i = 0; i < pools.Length; i++) pools[i] = new List<GameObject>();
+
+            hud = new Hud(art.bold, art.semi, art.black, art.boldShadow, art.semiShadow)
+            {
+                Play = () => { if (state == State.Over) NewRun(); Go(State.Playing); },
+                Pause = () => Go(State.Paused),
+                Resume = () => Go(State.Playing),
+                Home = () => { NewRun(); Go(State.Start); },
+                Retry = () => { NewRun(); Go(State.Playing); },
+            };
+            fx = new Feedback(art.spark);
 
             engine = Audio(Sounds.Engine(), true);
             scrape = Audio(Sounds.Noise("scrape", 1, false), true);
             crash = Audio(Sounds.Noise("crash", 0.8f, true), false);
+            hit = Audio(Sounds.Noise("hit", 0.15f, true), false);
             scrape.volume = 0;
             NewRun();
+            Go(State.Start);
         }
 
         AudioSource Audio(AudioClip clip, bool loop)
@@ -82,88 +93,152 @@ namespace Geisterfahrer.Game
             views.Clear();
             run = new Run(tuning, seed++);
             lastHits = 0;
-            camX = 0;
-            Sync(0);
+            camX = (float)run.X;
+            Time.timeScale = 1;
+        }
+
+        void Go(State s)
+        {
+            state = s;
+            hud.Show(s == State.Start ? Hud.Screen.Start : s == State.Paused ? Hud.Screen.Pause : s == State.Over ? Hud.Screen.Over : Hud.Screen.Hud);
+            hud.SetBest(PlayerPrefs.GetFloat("bestSpeed", 0), PlayerPrefs.GetFloat("bestDist", 0));
         }
 
         void Update()
         {
             var k = Keyboard.current;
-            float dt = Mathf.Min(Time.deltaTime, 0.05f);
-            // Outside a run the whole screen is UI, so the finger that taps Play/Retry does not steer or accelerate.
-            input.Update(state == State.Playing ? PauseRect : new Rect(0, 0, Screen.width, Screen.height));
+            bool pauseKey = k != null && (k.escapeKey.wasPressedThisFrame || k.pKey.wasPressedThisFrame);
+            input.Update(p => state != State.Playing || RectTransformUtility.RectangleContainsScreenPoint(hud.PauseButton, p, null));
+
             if (state == State.Playing)
             {
-                if (k != null && (k.escapeKey.wasPressedThisFrame || k.pKey.wasPressedThisFrame)) state = State.Paused;
-                run.Step(dt, input.Steer, input.Gas);
-                if (run.Hits > lastHits) { shake = Mathf.Max(shake, (float)run.LastImpulse * 0.06f); lastHits = run.Hits; }
-                if (run.Crashed) { state = State.Dying; dyingTime = 0.7f; shake = 0.6f; crash.Play(); }
+                if (pauseKey) Go(State.Paused);
+                run.Step(Mathf.Min(Time.deltaTime, 0.05f), input.Steer, input.Gas);
+                Effects();
             }
-            else if (state == State.Paused && k != null && (k.escapeKey.wasPressedThisFrame || k.pKey.wasPressedThisFrame)) state = State.Playing;
-            else if (state == State.Dying && (dyingTime -= dt) <= 0) EndRun();
-            else if ((state == State.Start || state == State.Over) && k != null && k.enterKey.wasPressedThisFrame) Play();
-            Sync(dt);
+            else if (state == State.Paused && pauseKey) Go(State.Playing);
+            else if (state == State.Dying)
+            {
+                // Slow motion for 0.8 s real time, then frozen; game over at 1.0 s (look-spec 9.2).
+                dyingTime += Time.unscaledDeltaTime;
+                if (dyingTime > 0.8f) Time.timeScale = 0;
+                if (dyingTime > 1.0f) EndRun();
+            }
+            else if ((state == State.Start || state == State.Over) && k != null && k.enterKey.wasPressedThisFrame) hud.Play();
+
+            Sync();
+            hud.SetTouch(state == State.Playing ? input.SteerOrigin : null, input.SteerX);
+            hud.SetRun(run.V * 3.6, run.Distance, run.TopSpeed * 3.6);
+            hud.Tick();
+            if (Debug.isDebugBuild) Perf();
         }
 
-        void Play()
+        // Dev builds: one logcat line every 5 s (adb logcat -s Unity | findstr PERF).
+        float perfTime, perfWorst;
+        int perfFrames;
+
+        void Perf()
         {
-            if (state == State.Over) NewRun();
-            state = State.Playing;
+            perfFrames++;
+            perfWorst = Mathf.Max(perfWorst, Time.unscaledDeltaTime);
+            if ((perfTime += Time.unscaledDeltaTime) < 5) return;
+            Debug.Log($"PERF fps {perfFrames / perfTime:F1} worst {perfWorst * 1000:F1} ms vehicles {run.Vehicles.Count} kmh {run.V * 3.6:F0} mem {UnityEngine.Profiling.Profiler.GetTotalAllocatedMemoryLong() >> 20} MB");
+            perfTime = perfWorst = 0; perfFrames = 0;
+        }
+
+        void Effects()
+        {
+            var point = RoadView.Place((float)run.HitZ, (float)run.HitX, 0.5f);
+            float side = (float)run.HitNx;
+            if (run.Crashed)
+            {
+                state = State.Dying; dyingTime = 0; Time.timeScale = 0.25f;
+                fx.Crash(point);
+                hud.Flash(-1, 0.55f, 0.15f, 0.6f);
+                crash.Play();
+                return;
+            }
+            if (run.Hits > lastHits)
+            {
+                lastHits = run.Hits;
+                float j = (float)run.LastImpulse;
+                fx.Hit(point, side, j);
+                if (side != 0) hud.Flash(side < 0 ? 0 : 1, Mathf.Min(0.33f, 0.15f + 0.03f * j), 0.06f, 0.2f);
+                hit.volume = 0.5f + 0.08f * j;
+                hit.pitch = Random.Range(0.9f, 1.1f);
+                hit.Play();
+            }
+            else if (run.Scraping && run.V > 0) fx.Scrape(point, side, Time.deltaTime);
         }
 
         void EndRun()
         {
-            state = State.Over;
             float speed = (float)(run.MaxSpeed * 3.6), dist = (float)run.Distance;
-            newBestSpeed = speed > PlayerPrefs.GetFloat("bestSpeed", 0);
-            newBestDist = dist > PlayerPrefs.GetFloat("bestDist", 0);
-            if (newBestSpeed) PlayerPrefs.SetFloat("bestSpeed", speed);
-            if (newBestDist) PlayerPrefs.SetFloat("bestDist", dist);
+            float bestSpeed = PlayerPrefs.GetFloat("bestSpeed", 0), bestDist = PlayerPrefs.GetFloat("bestDist", 0);
+            bool nbs = speed > bestSpeed, nbd = dist > bestDist;
+            if (nbs) PlayerPrefs.SetFloat("bestSpeed", bestSpeed = speed);
+            if (nbd) PlayerPrefs.SetFloat("bestDist", bestDist = dist);
             PlayerPrefs.Save();
+            hud.SetResult(0, speed.ToString("F1"), "km/h", bestSpeed.ToString("F1"), nbs);
+            hud.SetResult(1, (dist / 1000).ToString("F2"), "km", (bestDist / 1000).ToString("F2"), nbd);
+            Go(State.Over);
         }
 
-        void Sync(float dt)
+        void Sync()
         {
             road.Scroll(run.Distance);
-            RenderSettings.fogStartDistance = 120;
-            RenderSettings.fogEndDistance = (float)run.SpawnDistance + 20;
+            float spawn = (float)run.SpawnDistance;
+            RenderSettings.fogStartDistance = 0.45f * spawn;
+            RenderSettings.fogEndDistance = spawn;
+            cam.farClipPlane = spawn + 30;
 
             float lookYaw = Mathf.Clamp((float)(run.Yaw * Mathf.Rad2Deg * 2), -6, 6);
             float roll = Mathf.Clamp((float)(-run.Side / 7 * 3), -3, 3);
-            player.SetPositionAndRotation(new Vector3((float)run.X, 0, 0), Quaternion.Euler(0, lookYaw, roll));
+            player.SetPositionAndRotation(RoadView.Place(0, (float)run.X), Quaternion.Euler(0, lookYaw, roll));
 
             foreach (var v in run.Vehicles)
             {
                 if (!views.TryGetValue(v, out var go)) views[v] = go = Take(v.Type);
-                go.transform.position = new Vector3((float)v.X, 0, (float)v.Z);
+                go.transform.position = RoadView.Place((float)v.Z, (float)v.X);
             }
             gone.Clear();
             foreach (var kv in views) if (!run.Vehicles.Contains(kv.Key)) gone.Add(kv.Key);
             foreach (var v in gone) { Release(v, views[v]); views.Remove(v); }
 
-            // Chase camera: behind and above, follows x with a small delay, FOV widens with speed.
-            camX += ((float)run.X - camX) * (1 - Mathf.Exp(-dt / 0.15f));
-            shake = Mathf.Max(0, shake - dt * 1.5f);
-            var jitter = Random.insideUnitSphere * shake * 0.3f;
-            cam.transform.position = new Vector3(camX, 2.7f, -6.5f) + jitter;
-            cam.transform.LookAt(new Vector3(camX, 1.0f, 12) + jitter);
-            cam.fieldOfView = Mathf.Lerp(58, 72, (float)(run.V / run.TopSpeed));
+            // Chase camera (look-spec 5): 6.5 m behind, 2.7 m up, looks 14 m ahead; FOV 58 at 100 km/h to 66 at the ceiling.
+            camX = Mathf.SmoothDamp(camX, (float)run.X, ref camVel, 0.15f, Mathf.Infinity, Time.unscaledDeltaTime);
+            fx.ShakeOffset(out var sp, out var sr);
+            cam.transform.position = RoadView.Place(-6.5f, camX, 2.7f) + sp;
+            cam.transform.LookAt(RoadView.Place(14, camX, 0.8f));
+            cam.transform.Rotate(sr.x, sr.y, 0);
+            float fov = Mathf.LerpUnclamped(58, 66, (float)((run.V - 100 / 3.6) / (run.TopSpeed - 100 / 3.6)));
+            if (state == State.Dying || state == State.Over) // FOV punch: -5 in 0.08 s, back over 0.6 s
+                fov -= 5 * (dyingTime < 0.08f ? dyingTime / 0.08f : Mathf.Clamp01(1 - (dyingTime - 0.08f) / 0.6f));
+            cam.fieldOfView = fov;
 
             bool moving = state == State.Playing;
             engine.volume = moving ? 0.25f : 0;
             engine.pitch = 0.6f + (float)(run.V / run.TopSpeed) * 2.4f;
-            bool touching = moving && run.V > 0 && Mathf.Abs((float)run.X) + 1.2f > (float)Road.RailX;
-            scrape.volume = Mathf.MoveTowards(scrape.volume, touching ? 0.3f : 0, dt * 3);
+            scrape.volume = Mathf.MoveTowards(scrape.volume, moving && run.Scraping && run.V > 0 ? 0.6f : 0, Time.unscaledDeltaTime / 0.15f);
+            scrape.pitch = 0.9f + 0.4f * (float)(run.V / run.TopSpeed);
         }
 
         GameObject Take(int type)
         {
             var pool = pools[type];
-            GameObject go;
-            if (pool.Count > 0) { go = pool[pool.Count - 1]; pool.RemoveAt(pool.Count - 1); go.SetActive(true); return go; }
+            if (pool.Count > 0)
+            {
+                var g = pool[pool.Count - 1];
+                pool.RemoveAt(pool.Count - 1);
+                g.SetActive(true);
+                return g;
+            }
             var t = Road.Types[type];
-            if (type < vehiclePrefabs.Length && vehiclePrefabs[type]) go = Instantiate(vehiclePrefabs[type]);
-            else go = Placeholder.Vehicle(t.Name, (float)t.Length, (float)t.Width, (float)t.Height, Colors[type]);
+            var model = type < art.vehicles.Length ? art.vehicles[type] : null;
+            var go = model ? Placeholder.Fit(model, (float)t.Length, t.Name)
+                : Placeholder.Vehicle(t.Name, (float)t.Length, (float)t.Width, (float)t.Height,
+                    t.Name == "Bus" ? Placeholder.Mat(Placeholder.Hex(0xE9E9E7), 0.1f, 0.75f) : Placeholder.TrafficPaint(t.Name == "Van"),
+                    t.Name == "Truck" ? Placeholder.Trailer : null);
             go.transform.rotation = Quaternion.Euler(0, 180, 0); // oncoming: front faces the player
             return go;
         }
@@ -172,71 +247,6 @@ namespace Geisterfahrer.Game
         {
             go.SetActive(false);
             pools[v.Type].Add(go);
-        }
-
-        static readonly Color[] Colors =
-        {
-            new Color(0.91f, 0.89f, 0.85f), new Color(0.2f, 0.22f, 0.26f), new Color(0.95f, 0.95f, 0.95f),
-            new Color(0.95f, 0.7f, 0.24f), new Color(0.6f, 0.15f, 0.15f),
-        };
-
-        // ---- HUD and panels (IMGUI placeholder until the designer's UI) ----
-
-        float U => Screen.height / 20f;
-        Rect PauseRect => state == State.Playing || state == State.Paused ? new Rect(Screen.width - U * 2.6f, U * 0.6f, U * 2, U * 2) : new Rect();
-
-        GUIStyle Style(float size, TextAnchor a = TextAnchor.MiddleLeft)
-        {
-            var s = new GUIStyle(GUI.skin.label) { fontSize = (int)(U * size), alignment = a, fontStyle = FontStyle.Bold };
-            s.normal.textColor = Color.white;
-            return s;
-        }
-
-        void Shadow(Rect r, string text, GUIStyle s)
-        {
-            var c = s.normal.textColor;
-            s.normal.textColor = new Color(0, 0, 0, 0.6f);
-            GUI.Label(new Rect(r.x + 2, r.y + 2, r.width, r.height), text, s);
-            s.normal.textColor = c;
-            GUI.Label(r, text, s);
-        }
-
-        void OnGUI()
-        {
-            float w = Screen.width, h = Screen.height, u = U;
-            var button = new GUIStyle(GUI.skin.button) { fontSize = (int)(u * 1.1f), fontStyle = FontStyle.Bold };
-
-            if (state == State.Playing || state == State.Paused || state == State.Dying)
-            {
-                Shadow(new Rect(u, u * 0.5f, w / 2, u * 2.4f), $"{run.V * 3.6:F0} km/h", Style(2));
-                Shadow(new Rect(u, u * 2.8f, w / 2, u * 1.4f), $"{run.Distance / 1000:F2} km", Style(1.1f));
-                if (state != State.Dying && GUI.Button(PauseRect, state == State.Paused ? "▶" : "II", button))
-                    state = state == State.Paused ? State.Playing : State.Paused;
-                if (input.SteerOrigin is Vector2 o && state == State.Playing)
-                    GUI.Box(new Rect(o.x - u, h - o.y - u, u * 2, u * 2), GUIContent.none);
-            }
-
-            if (state == State.Start || state == State.Over)
-            {
-                GUI.color = new Color(0, 0, 0, 0.55f);
-                GUI.DrawTexture(new Rect(0, 0, w, h), Texture2D.whiteTexture);
-                GUI.color = Color.white;
-                var center = Style(1.2f, TextAnchor.MiddleCenter);
-                float bestSpeed = PlayerPrefs.GetFloat("bestSpeed", 0), bestDist = PlayerPrefs.GetFloat("bestDist", 0);
-                if (state == State.Start)
-                {
-                    GUI.Label(new Rect(0, h * 0.18f, w, u * 3), "GEISTERFAHRER", Style(2.6f, TextAnchor.MiddleCenter));
-                    GUI.Label(new Rect(0, h * 0.4f, w, u * 1.5f), $"{bestSpeed:F1} km/h    {bestDist / 1000:F2} km", center);
-                }
-                else
-                {
-                    GUI.Label(new Rect(0, h * 0.14f, w, u * 2.5f), $"{run.MaxSpeed * 3.6:F1} km/h    {run.Distance / 1000:F2} km", Style(2, TextAnchor.MiddleCenter));
-                    string bs = newBestSpeed ? "  New best" : "", bd = newBestDist ? "  New best" : "";
-                    GUI.Label(new Rect(0, h * 0.34f, w, u * 1.4f), $"{bestSpeed:F1} km/h{bs}", center);
-                    GUI.Label(new Rect(0, h * 0.42f, w, u * 1.4f), $"{bestDist / 1000:F2} km{bd}", center);
-                }
-                if (GUI.Button(new Rect(w / 2 - u * 4, h * 0.62f, u * 8, u * 3), state == State.Start ? "Play" : "Retry", button)) Play();
-            }
         }
     }
 }

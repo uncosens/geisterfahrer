@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-160 -160 320 320" width="512" height="512">
+<!-- Speed dial face: 0-330 km/h over 270 degrees, 0 at lower left. Numerals are TMP texts (see ui-spec.md 6.2). -->
+<circle r="160" fill="#0B0C0E" fill-opacity="0.72"/>
+<circle r="157" fill="none" stroke="#8A8F96" stroke-opacity="0.9" stroke-width="6"/>
+<circle r="150" fill="none" stroke="#FFFFFF" stroke-opacity="0.15" stroke-width="1.5"/>
+<line x1="-91.9" y1="91.9" x2="-104.7" y2="104.7" stroke="#F4F4F2" stroke-opacity="0.95" stroke-width="4" stroke-linecap="butt"/>
+<line x1="-112.9" y1="84.5" x2="-118.5" y2="88.7" stroke="#F4F4F2" stroke-opacity="0.55" stroke-width="2" stroke-linecap="butt"/>
+<line x1="-123.8" y1="67.6" x2="-129.9" y2="70.9" stroke="#F4F4F2" stroke-opacity="0.55" stroke-width="2" stroke-linecap="butt"/>
+<line x1="-127.4" y1="47.5" x2="-138.7" y2="51.7" stroke="#F4F4F2" stroke-opacity="0.85" stroke-width="3" stroke-linecap="butt"/>
+<line x1="-137.8" y1="30.0" x2="-144.6" y2="31.5" stroke="#F4F4F2" stroke-opacity="0.55" stroke-width="2" stroke-linecap="butt"/>
+<line x1="-140.6" y1="10.1" x2="-147.6" y2="10.6" stroke="#F4F4F2" stroke-opacity="0.55" stroke-width="2" stroke-linecap="butt"/>
+<line x1="-129.7" y1="-9.3" x2="-147.6" y2="-10.6" stroke="#F4F4F2" stroke-opacity="0.95" stroke-width="4" stroke-linecap="butt"/>
+<line x1="-137.8" y1="-30.0" x2="-144.6" y2="-31.5" stroke="#F4F4F2" stroke-opacity="0.55" stroke-width="2" stroke-linecap="butt"/>
+<line x1="-132.1" y1="-49.3" x2="-138.7" y2="-51.7" stroke="#F4F4F2" stroke-opacity="0.55" stroke-width="2" stroke-linecap="butt"/>
+<line x1="-119.4" y1="-65.2" x2="-129.9" y2="-70.9" stroke="#F4F4F2" stroke-opacity="0.85" stroke-width="3" stroke-linecap="butt"/>
+<line x1="-112.9" y1="-84.5" x2="-118.5" y2="-88.7" stroke="#F4F4F2" stroke-opacity="0.55" stroke-width="2" stroke-linecap="butt"/>
+<line x1="-99.7" y1="-99.7" x2="-104.7" y2="-104.7" stroke="#F4F4F2" stroke-opacity="0.55" stroke-width="2" stroke-linecap="butt"/>
+<line x1="-77.9" y1="-104.1" x2="-88.7" y2="-118.5" stroke="#F4F4F2" stroke-opacity="0.95" stroke-width="4" stroke-linecap="butt"/>
+<line x1="-67.6" y1="-123.8" x2="-70.9" y2="-129.9" stroke="#F4F4F2" stroke-opacity="0.55" stroke-width="2" stroke-linecap="butt"/>
+<line x1="-49.3" y1="-132.1" x2="-51.7" y2="-138.7" stroke="#F4F4F2" stroke-opacity="0.55" stroke-width="2" stroke-linecap="butt"/>
+<line x1="-28.9" y1="-132.9" x2="-31.5" y2="-144.6" stroke="#F4F4F2" stroke-opacity="0.85" stroke-width="3" stroke-linecap="butt"/>
+<line x1="-10.1" y1="-140.6" x2="-10.6" y2="-147.6" stroke="#F4F4F2" stroke-opacity="0.55" stroke-width="2" stroke-linecap="butt"/>
+<line x1="10.1" y1="-140.6" x2="10.6" y2="-147.6" stroke="#F4F4F2" stroke-opacity="0.55" stroke-width="2" stroke-linecap="butt"/>
+<line x1="27.6" y1="-127.0" x2="31.5" y2="-144.6" stroke="#F4F4F2" stroke-opacity="0.95" stroke-width="4" stroke-linecap="butt"/>
+<line x1="49.3" y1="-132.1" x2="51.7" y2="-138.7" stroke="#F4F4F2" stroke-opacity="0.55" stroke-width="2" stroke-linecap="butt"/>
+<line x1="67.6" y1="-123.8" x2="70.9" y2="-129.9" stroke="#F4F4F2" stroke-opacity="0.55" stroke-width="2" stroke-linecap="butt"/>
+<line x1="81.5" y1="-108.9" x2="88.7" y2="-118.5" stroke="#F4F4F2" stroke-opacity="0.85" stroke-width="3" stroke-linecap="butt"/>
+<line x1="99.7" y1="-99.7" x2="104.7" y2="-104.7" stroke="#F4F4F2" stroke-opacity="0.55" stroke-width="2" stroke-linecap="butt"/>
+<line x1="112.9" y1="-84.5" x2="118.5" y2="-88.7" stroke="#F4F4F2" stroke-opacity="0.55" stroke-width="2" stroke-linecap="butt"/>
+<line x1="114.1" y1="-62.3" x2="129.9" y2="-70.9" stroke="#F4F4F2" stroke-opacity="0.95" stroke-width="4" stroke-linecap="butt"/>
+<line x1="132.1" y1="-49.3" x2="138.7" y2="-51.7" stroke="#F4F4F2" stroke-opacity="0.55" stroke-width="2" stroke-linecap="butt"/>
+<line x1="137.8" y1="-30.0" x2="144.6" y2="-31.5" stroke="#F4F4F2" stroke-opacity="0.55" stroke-width="2" stroke-linecap="butt"/>
+<line x1="135.7" y1="-9.7" x2="147.6" y2="-10.6" stroke="#F4F4F2" stroke-opacity="0.85" stroke-width="3" stroke-linecap="butt"/>
+<line x1="140.6" y1="10.1" x2="147.6" y2="10.6" stroke="#F4F4F2" stroke-opacity="0.55" stroke-width="2" stroke-linecap="butt"/>
+<line x1="137.8" y1="30.0" x2="144.6" y2="31.5" stroke="#F4F4F2" stroke-opacity="0.55" stroke-width="2" stroke-linecap="butt"/>
+<line x1="121.8" y1="45.4" x2="138.7" y2="51.7" stroke="#F4F4F2" stroke-opacity="0.95" stroke-width="4" stroke-linecap="butt"/>
+<line x1="123.8" y1="67.6" x2="129.9" y2="70.9" stroke="#F4F4F2" stroke-opacity="0.55" stroke-width="2" stroke-linecap="butt"/>
+<line x1="112.9" y1="84.5" x2="118.5" y2="88.7" stroke="#F4F4F2" stroke-opacity="0.55" stroke-width="2" stroke-linecap="butt"/>
+<line x1="91.9" y1="91.9" x2="104.7" y2="104.7" stroke="#F4F4F2" stroke-opacity="0.95" stroke-width="4" stroke-linecap="butt"/>
+</svg>

@@ -3,6 +3,9 @@
     "rootNamespace": "Geisterfahrer.Editor",
     "references": [
         "Geisterfahrer.Game",
+        "Geisterfahrer.Core",
+        "Unity.TextMeshPro",
+        "Unity.RenderPipelines.Core.Runtime",
         "Unity.RenderPipelines.Universal.Runtime"
     ],
     "includePlatforms": [

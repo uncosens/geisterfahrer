@@ -14,7 +14,7 @@ namespace Geisterfahrer.Core
         public double AirDensity = 1.225;
         public double Crr = 0.012;
         public double EngineBrake = 400;
-        public double StartSpeedKmh = 100;
+        public double StartSpeedKmh = 0;
 
         // Side motion
         public double MaxSideSpeed = 7;

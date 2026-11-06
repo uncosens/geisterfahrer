@@ -24,3 +24,4 @@ Thumbs.db
 # Third-party models: licences may forbid redistribution. The README says where to get each one.
 /Assets/ThirdParty/
 /Assets/ThirdParty.meta
+/Assets/Resources/PerformanceTestRun*

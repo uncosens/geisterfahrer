@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.EnhancedTouch;
@@ -14,12 +15,13 @@ namespace Geisterfahrer.Game
 
         public float Steer;
         public bool Gas;
+        public float SteerX; // current steering finger x (screen px)
         public Vector2? SteerOrigin => steerFinger >= 0 ? origin : (Vector2?)null;
 
         public DriveInput() => EnhancedTouchSupport.Enable();
 
-        // blocked: screen rect (top-left origin, like OnGUI) where touches belong to the UI.
-        public void Update(Rect blocked)
+        // blocked: true for screen points (bottom-left origin) that belong to the UI.
+        public void Update(Func<Vector2, bool> blocked)
         {
             bool steerSeen = false, gasSeen = false;
             Steer = 0;
@@ -32,6 +34,7 @@ namespace Geisterfahrer.Game
                 if (id == steerFinger)
                 {
                     steerSeen = true;
+                    SteerX = t.screenPosition.x;
                     float off = (t.screenPosition.x - origin.x) / dp;
                     float mag = Mathf.Clamp01((Mathf.Abs(off) - DeadZoneDp) / (MaxDp - DeadZoneDp));
                     Steer = Mathf.Sign(off) * mag;
@@ -40,8 +43,8 @@ namespace Geisterfahrer.Game
                 else
                 {
                     var s = t.startScreenPosition;
-                    if (blocked.Contains(new Vector2(s.x, Screen.height - s.y))) continue;
-                    if (s.x < Screen.width / 2f && steerFinger < 0) { steerFinger = id; origin = s; steerSeen = true; }
+                    if (blocked(s)) continue;
+                    if (s.x < Screen.width / 2f && steerFinger < 0) { steerFinger = id; origin = s; SteerX = s.x; steerSeen = true; }
                     else if (s.x >= Screen.width / 2f && gasFinger < 0) { gasFinger = id; gasSeen = true; }
                 }
             }
