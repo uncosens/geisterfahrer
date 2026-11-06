@@ -65,5 +65,36 @@ namespace Geisterfahrer.Tests
             Assert.AreEqual(0.85 * 9.81, a, 0.01);
             Assert.AreEqual(0, Car.Accel(T, 0, false));
         }
+
+        // Tyre scrub (GDD 2.2 table): speed change in 1 s, accelerator held.
+        static double OneSecond(double kmh, double steer, bool throttle)
+        {
+            double v = kmh / 3.6;
+            for (double t = 0; t < 1; t += Dt) v = Car.Step(T, v, throttle, Dt, steer);
+            return v * 3.6 - kmh;
+        }
+
+        [Test] public void Scrub200HeldFull() => Assert.AreEqual(3.2, OneSecond(200, 1, true), 0.3);
+        [Test] public void Scrub200HeldLight() => Assert.AreEqual(7.1, OneSecond(200, 0.3, true), 0.3);
+        [Test] public void Scrub300HeldFull() => Assert.AreEqual(-3.9, OneSecond(300, 1, true), 0.3);
+        [Test] public void Scrub100UpFull() => Assert.AreEqual(-6.4, OneSecond(100, 1, false), 0.3);
+        [Test] public void CeilingWhileSteeringFull() => Assert.AreEqual(243, Car.TopSpeed(T, 1) * 3.6, 2);
+
+        [Test] public void CeilingDownhill4() => Assert.AreEqual(327, Car.TopSpeed(T, 0, -0.04) * 3.6, 1.5);
+        [Test] public void CeilingUphill4() => Assert.AreEqual(286, Car.TopSpeed(T, 0, 0.04) * 3.6, 1.5);
+
+        [Test]
+        public void CoastDownhill4SettlesNear20()
+        {
+            double v = 100 / 3.6;
+            for (double t = 0; t < 3000; t += 0.01) v = Car.Step(T, v, false, 0.01, 0, -0.04); // slow approach to balance
+            Assert.AreEqual(20, v * 3.6, 2);
+        }
+
+        [Test]
+        public void NoRollingBackUphill()
+        {
+            Assert.AreEqual(0, Car.Step(T, 0, false, 0.1, 0, 0.04));
+        }
     }
 }

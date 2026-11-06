@@ -91,7 +91,8 @@ namespace Geisterfahrer.Game
         {
             foreach (var kv in views) Release(kv.Key, kv.Value);
             views.Clear();
-            run = new Run(tuning, seed++);
+            // Flat straight road until the view can draw curves and hills (road geometry step).
+            run = new Run(tuning, seed++, Track.Constant(0, 0));
             lastHits = 0;
             camX = (float)run.X;
             Time.timeScale = 1;

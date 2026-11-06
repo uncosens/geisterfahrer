@@ -1,5 +1,6 @@
 using System;
 using Geisterfahrer.Core;
+using System.Collections.Generic;
 using NUnit.Framework;
 
 namespace Geisterfahrer.Tests
@@ -10,9 +11,9 @@ namespace Geisterfahrer.Tests
         const double Dt = 1.0 / 60;
         const int Compact = 0, Sedan = 1, Truck = 4;
 
-        static Run NewRun(double kmh)
+        static Run NewRun(double kmh, double curvature = 0, double grade = 0)
         {
-            var r = new Run(new Tuning()) { Spawning = false };
+            var r = new Run(new Tuning(), 0, Track.Constant(curvature, grade)) { Spawning = false, Started = true };
             r.V = kmh / 3.6;
             return r;
         }
@@ -152,29 +153,108 @@ namespace Geisterfahrer.Tests
             Assert.Greater(r.Distance, 300);
         }
 
-        // Fair-lane rule: ahead of the player, never all 3 lanes blocked at the same z.
+        // Safe corridor (GDD 4.3): at constant speed, whatever passes the player leaves a gap of at least 2.85 m.
         [Test]
-        public void NeverAWallOfThreeLanes()
+        public void SafeCorridorAlwaysOpen()
         {
             var t = new Tuning { CrashImpulse = double.MaxValue };
-            var r = new Run(t, 1);
-            r.V = 100 / 3.6;
+            var r = new Run(t, 1, Track.Constant(0, 0)) { Started = true };
             int spawned = 0;
             for (int i = 0; i < 60 * 300; i++)
             {
                 int before = r.Vehicles.Count;
-                r.Step(Dt, 0, true);
+                r.V = 200 / 3.6;
+                r.X = -Road.RailX + 2; // stay out of the way: only the gap is checked
+                r.Step(Dt, 0, false);
                 spawned += Math.Max(0, r.Vehicles.Count - before);
-                for (double z = 10; z < r.SpawnDistance; z += 1)
-                {
-                    int blocked = 0;
-                    for (int lane = 0; lane < Road.LaneCount; lane++)
-                        foreach (var v in r.Vehicles)
-                            if (v.Lane == lane && Math.Abs(v.Z - z) < v.T.Length / 2) { blocked++; break; }
-                    Assert.Less(blocked, Road.LaneCount, $"wall at z={z} t={r.Time:F1}");
-                }
+                var bodies = new List<(double a, double b)>();
+                foreach (var v in r.Vehicles)
+                    if (Math.Abs(v.Z) < (v.T.Length + Road.PlayerLength) / 2) bodies.Add((v.X - v.T.Width / 2, v.X + v.T.Width / 2));
+                bodies.Sort();
+                double edge = -Road.RailX, widest = 0;
+                foreach (var b in bodies) { widest = Math.Max(widest, b.a - edge); edge = Math.Max(edge, b.b); }
+                widest = Math.Max(widest, Road.RailX - edge);
+                Assert.GreaterOrEqual(widest, t.CorridorWidth - 1e-6, $"t={r.Time:F1}");
             }
             Assert.Greater(spawned, 200);
+        }
+
+        [Test]
+        public void WanderStaysInLaneAndSlow()
+        {
+            var r = new Run(new Tuning(), 3, Track.Constant(0, 0)) { Started = true };
+            for (int i = 0; i < 60 * 60; i++)
+            {
+                r.V = 150 / 3.6;
+                r.X = -Road.RailX + 2;
+                var before = new Dictionary<Vehicle, double>();
+                foreach (var v in r.Vehicles) before[v] = v.Offset;
+                r.Step(Dt, 0, false);
+                foreach (var v in r.Vehicles)
+                {
+                    Assert.LessOrEqual(Math.Abs(v.Offset), (Road.LaneWidth - v.T.Width) / 2 - 0.1 + 1e-9);
+                    if (before.TryGetValue(v, out var o)) Assert.Less(Math.Abs(v.Offset - o) / Dt, 0.25);
+                }
+            }
+        }
+
+        [Test]
+        public void RunStartsOnFirstThrottle()
+        {
+            var r = new Run(new Tuning(), 0);
+            for (int i = 0; i < 120; i++) r.Step(Dt, 0, false);
+            Assert.IsFalse(r.Started);
+            Assert.AreEqual(0, r.Time);
+            Assert.AreEqual(0, r.Vehicles.Count);
+            r.Spawning = false; // only the speed curve from here
+            for (int i = 0; i < 60 * 10; i++) r.Step(Dt, 0, true);
+            Assert.IsTrue(r.Started);
+            Assert.AreEqual(186, r.V * 3.6, 2);       // GDD 2.2: 10 s from standstill
+            Assert.AreEqual(318, r.Distance, 6);
+        }
+
+        // Curve drift (GDD 6.3, 2.5): full steering against a curve to the right, drifting into the outer (left) rail.
+        static Run CurveRail(double radius, out double before)
+        {
+            var r = NewRun(306, 1 / radius);
+            r.X = -Road.RailX + 4; // far enough for the side speed to settle before the rail
+            before = r.V;
+            for (int i = 0; i < 10000 && r.LastImpulse == 0; i++) { r.V = 306 / 3.6; r.Step(0.001, 1, true); } // GDD example speed
+            return r;
+        }
+
+        [Test]
+        public void CurveDriftScrapesAtR720()
+        {
+            var r = CurveRail(720, out _);
+            Assert.IsFalse(r.Crashed);
+            Assert.AreEqual(1.6, r.LastImpulse, 0.15);
+        }
+
+        [Test]
+        public void CurveDriftCrashesAtR470()
+        {
+            var r = CurveRail(470, out _);
+            Assert.IsTrue(r.Crashed);
+            Assert.AreEqual(8.4, r.LastImpulse, 0.3);
+        }
+
+        [Test]
+        public void CurveHoldsAtR1000()
+        {
+            var r = NewRun(306, 1 / 1000.0);
+            for (int i = 0; i < 120; i++) { r.V = 306 / 3.6; r.Step(Dt, 1, true); }
+            Assert.AreEqual(0.82, r.SHold, 0.03);
+            Assert.Greater(r.Side, 0); // full steering beats the drift: still some inward reach
+        }
+
+        [Test]
+        public void DriftPushesOutwardWithoutSteering()
+        {
+            var r = NewRun(200, 1 / 1000.0);
+            double x0 = r.X;
+            for (int i = 0; i < 30; i++) r.Step(Dt, 0, true);
+            Assert.Less(r.X, x0); // curve to the right pushes the car left
         }
     }
 }

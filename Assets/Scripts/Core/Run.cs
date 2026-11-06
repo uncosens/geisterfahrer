@@ -6,38 +6,47 @@ namespace Geisterfahrer.Core
     public class Vehicle
     {
         public int Type, Lane;
-        public double Z, Speed, Offset; // Z = road distance ahead of the player; Speed = own speed in m/s, toward the player
+        public double Z, Speed;            // Z = road distance ahead of the player; Speed = own speed in m/s, toward the player
+        public double OBase, A, Period, Phase, OMax, Offset; // side offset inside the lane with slow wander (GDD 4.2)
         public bool Touching;
         public VehicleType T => Road.Types[Type];
         public double X => Road.LaneX(Lane) + Offset;
+        public double OffsetAt(double t) => Period > 0 ? Math.Max(-OMax, Math.Min(OMax, OBase + A * Math.Sin(2 * Math.PI * t / Period + Phase))) : OBase;
     }
 
-    // One run: player car, traffic, contacts, records. The player stays at z = 0; the world moves toward it.
+    // One run in road space: the player at road distance Distance and side offset X; vehicles at Z ahead.
     public class Run
     {
+        const double G = 9.81;
         public readonly Tuning T;
+        public readonly Track Track;
         public readonly double TopSpeed;
         public readonly List<Vehicle> Vehicles = new List<Vehicle>();
         readonly Random rng;
 
         public double X, V, Side, Yaw;
         public double Time, Distance, MaxSpeed;
-        public bool Crashed;
+        public bool Started, Crashed;
         public bool Spawning = true;
-        public double LastImpulse; // last survived or fatal hit, for feedback
+        public double SHold;               // steering needed to hold the line in the current curve (GDD 6.3)
+        public double LastImpulse;         // last survived or fatal hit, for feedback
         public int Hits;
-        public double HitX, HitZ, HitNx; // last contact point (road space) and its side, for effects
-        public bool Scraping;             // touched a rail or vehicle during the last Step
-        bool[] railTouching = new bool[2];
+        public double HitX, HitZ, HitNx;   // last contact point (road space) and its side, for effects
+        public bool Scraping;              // touched a rail or vehicle during the last Step
+        readonly bool[] railTouching = new bool[2];
         double nextSpawnTime;
+        readonly List<double> corridorT = new List<double>(), corridorX = new List<double>();
+        double corridorTarget;
 
-        public Run(Tuning t, int seed = 0)
+        public Run(Tuning t, int seed = 0, Track track = null)
         {
             T = t;
             TopSpeed = Car.TopSpeed(t);
             rng = new Random(seed);
+            Track = track ?? new Track(seed);
+            Track.Ensure(0, 0);
             V = MaxSpeed = t.StartSpeedKmh / 3.6;
-            X = Road.LaneX(2);
+            X = corridorTarget = Road.LaneX(2);
         }
 
         public double SpawnDistance => Math.Max(T.MinSpawnDistance, (V + Road.FastestTrafficKmh / 3.6) * T.SpawnWarningTime);
@@ -45,24 +54,31 @@ namespace Geisterfahrer.Core
         public void Step(double dt, double steer, bool throttle)
         {
             if (Crashed) return;
+            // The run clock, spawner and road phase start on the first accelerator press (GDD 2.4).
+            if (!Started && !(Started = throttle)) return;
             Scraping = false;
             double maxMove = (V + 60) * dt + Math.Abs(Side) * dt; // 60 m/s > fastest traffic
             int n = Math.Max(1, (int)Math.Ceiling(maxMove / T.MaxStepMove));
             double h = dt / n;
             for (int i = 0; i < n && !Crashed; i++) SubStep(h, steer, throttle);
-            Spawn(dt);
+            Track.Ensure(Distance, Phase(Time));
+            Spawn();
             Vehicles.RemoveAll(v => v.Z < -40);
         }
 
         void SubStep(double h, double steer, bool throttle)
         {
-            V = Car.Step(T, V, throttle, h);
-            double target = steer * Math.Min(T.MaxSideSpeed, T.SideSpeedPerSpeed * V);
+            double kappa = Track.Curvature(Distance);
+            V = Car.Step(T, V, throttle, h, steer, Track.Grade(Distance));
+            double sideMax = Math.Min(T.MaxSideSpeed, T.SideSpeedPerSpeed * V);
+            SHold = Math.Max(0, V * V * Math.Abs(kappa) - G * T.Superelevation) / (T.Mu * G);
+            double target = sideMax * steer - Math.Sign(kappa) * sideMax * SHold; // drift pushes outward
+            target = Math.Max(-T.MaxSideSpeed, Math.Min(T.MaxSideSpeed, target));
             double tau = steer != 0 ? T.SteerTau : T.RecenterTau;
             Side += (target - Side) * (1 - Math.Exp(-h / tau));
             X += Side * h;
             Yaw = Math.Atan2(Side, V);
-            foreach (var v in Vehicles) v.Z -= (V + v.Speed) * h;
+            foreach (var v in Vehicles) { v.Z -= (V + v.Speed) * h; v.Offset = v.OffsetAt(Time); }
             Distance += V * h;
             Time += h;
             MaxSpeed = Math.Max(MaxSpeed, V);
@@ -115,19 +131,21 @@ namespace Geisterfahrer.Core
             X -= Math.Sign(nx) * depth; // push out sideways; the player cannot move in z
         }
 
-        // ponytail: density curve and gaps are first guesses from GDD 2.4/4.2; truck columns and
-        // the "tall vehicle hides the free lane" rule (GDD 5.3) are not done yet.
+        // ---- traffic (GDD 2.4, 4) ----
+
+        // Vehicles per km over all 4 lanes, rising smoothly through the phases.
         public static double Density(double t) =>
-            t < 20 ? 6 + 4 * t / 20 : t < 60 ? 10 + 5 * (t - 20) / 40 : t < 120 ? 15 : Math.Min(25, 15 + (t - 120) / 18);
+            t < 20 ? 8 + 5 * t / 20 : t < 60 ? 13 + 7 * (t - 20) / 40 : t < 120 ? 20 : Math.Min(32, 20 + (t - 120) * 12 / 180);
 
         public static int Phase(double t) => t < 20 ? 0 : t < 60 ? 1 : t < 120 ? 2 : 3;
 
-        void Spawn(double dt)
+        void Spawn()
         {
             if (!Spawning || Time < nextSpawnTime) return;
             // Vehicles met per second = density * closing speed; spawn on average at that rate.
-            double closing = V + 30;
-            double rate = Density(Time) / 1000 * closing;
+            double z = SpawnDistance;
+            double density = Density(Time) * (Track.KindAt(Distance + z) == Section.Tunnel ? T.TunnelDensity : 1);
+            double rate = density / 1000 * (V + 30);
             nextSpawnTime = Time + (0.5 + rng.NextDouble()) / rate;
             TrySpawn();
         }
@@ -137,47 +155,73 @@ namespace Geisterfahrer.Core
             int type = Pick(i => Road.Types[i].PhaseWeights[Phase(Time)], Road.Types.Length);
             var t = Road.Types[type];
             double speed = (t.MinKmh + rng.NextDouble() * (t.MaxKmh - t.MinKmh)) / 3.6;
-            double z = SpawnDistance;
+            double oMax = (Road.LaneWidth - t.Width) / 2 - T.LaneMargin;
+            var v = new Vehicle
+            {
+                Type = type, Z = SpawnDistance, Speed = speed, OMax = oMax,
+                OBase = Math.Max(-oMax, Math.Min(oMax, Normal() * 0.5 * oMax)),
+                A = rng.NextDouble() * 0.3 * oMax, Period = 8 + rng.NextDouble() * 7, Phase = rng.NextDouble() * 2 * Math.PI,
+            };
             var tried = new bool[Road.LaneCount];
             for (int k = 0; k < Road.LaneCount; k++)
             {
                 int lane = Pick(i => tried[i] ? 0 : t.LaneWeights[i], Road.LaneCount);
                 if (lane < 0) break;
                 tried[lane] = true;
-                double slack = (Road.LaneWidth - t.Width) / 2 * Road.LaneOffsetShare;
-                var v = new Vehicle { Type = type, Lane = lane, Z = z, Speed = speed, Offset = (rng.NextDouble() * 2 - 1) * slack };
-                if (Fits(v)) { Vehicles.Add(v); return true; }
+                v.Lane = lane;
+                if (Fits(v)) { v.Offset = v.OffsetAt(Time); Vehicles.Add(v); return true; }
             }
             return false;
         }
 
-        // Same lane: keep a gap and never let a faster vehicle catch a slower one ahead.
-        // Other lanes: never let all lanes be blocked at the same time before the vehicle reaches the player.
+        // Same lane: keep a gap (1.5 s behind tall vehicles) and never let a faster vehicle catch a slower one.
+        // Every lane: the body with its whole wander envelope stays clear of the safe corridor during its meet window.
+        // ponytail: meet times use the current player speed; the GDD's re-plan after a 20 % speed change,
+        // truck columns and the crest/curve corridor limits are not done.
         bool Fits(Vehicle n)
         {
-            double horizon = n.Z / Math.Max(V + n.Speed, 1);
-            var blocked = new bool[Road.LaneCount];
             foreach (var v in Vehicles)
             {
-                if (v.Lane == n.Lane)
-                {
-                    double gap = (n.T.Length + v.T.Length) / 2 + (v.T.IsTall ? T.SameLaneGapTime * (V + n.Speed) : 10);
-                    if (Math.Abs(n.Z - v.Z) < gap) return false;
-                    if (v.Z < n.Z) n.Speed = Math.Min(n.Speed, v.Speed);
-                }
-                else if (Meets(n, v, horizon)) blocked[v.Lane] = true;
+                if (v.Lane != n.Lane) continue;
+                double gap = (n.T.Length + v.T.Length) / 2 + (v.T.IsTall ? T.SameLaneGapTime * (V + n.Speed) : 10);
+                if (Math.Abs(n.Z - v.Z) < gap) return false;
+                if (v.Z < n.Z) n.Speed = Math.Min(n.Speed, v.Speed);
             }
-            blocked[n.Lane] = true;
-            return Array.IndexOf(blocked, false) >= 0;
+            double closing = Math.Max(V + n.Speed, 1), reach = (n.T.Length + Road.PlayerLength) / 2;
+            double t0 = Time + (n.Z - reach) / closing - T.MeetPad, t1 = Time + (n.Z + reach) / closing + T.MeetPad;
+            double lane = Road.LaneX(n.Lane), half = n.T.Width / 2 + T.CorridorWidth / 2;
+            double lo = lane + Math.Max(-n.OMax, n.OBase - n.A) - half, hi = lane + Math.Min(n.OMax, n.OBase + n.A) + half;
+            for (double t = t0; t <= t1 + 1e-9; t += 0.1)
+            {
+                double c = CorridorAt(t);
+                if (c > lo && c < hi) return false;
+            }
+            return true;
         }
 
-        // Do the two vehicles' blocked z ranges overlap at some time in [0, horizon]?
-        bool Meets(Vehicle a, Vehicle b, double horizon)
+        // Planned corridor centre at absolute run time t: 1 s knots, moving at most CorridorSpeed toward a target
+        // that changes now and then, staying clear of the rails (GDD 4.3). It starts at the player.
+        public double CorridorAt(double t)
         {
-            double reach = (a.T.Length + b.T.Length) / 2 + T.CrossLaneGap;
-            double d0 = a.Z - b.Z, d1 = d0 + (b.Speed - a.Speed) * horizon;
-            return Math.Sign(d0) != Math.Sign(d1) || Math.Min(Math.Abs(d0), Math.Abs(d1)) < reach;
+            if (corridorT.Count == 0) { corridorT.Add(Time); corridorX.Add(X); }
+            double edge = Road.RailX - T.CorridorWidth / 2 - T.CorridorRailGap;
+            while (corridorT[corridorT.Count - 1] < t)
+            {
+                double x = corridorX[corridorX.Count - 1];
+                if (rng.NextDouble() < 0.25) corridorTarget = (rng.NextDouble() * 2 - 1) * edge;
+                double step = Math.Max(-T.CorridorSpeed, Math.Min(T.CorridorSpeed, corridorTarget - x));
+                corridorT.Add(corridorT[corridorT.Count - 1] + 1);
+                corridorX.Add(Math.Max(-edge, Math.Min(edge, x + step)));
+            }
+            int i = corridorT.BinarySearch(t);
+            if (i >= 0) return corridorX[i];
+            i = ~i;
+            if (i == 0) return corridorX[0];
+            double k = (t - corridorT[i - 1]) / (corridorT[i] - corridorT[i - 1]);
+            return corridorX[i - 1] + (corridorX[i] - corridorX[i - 1]) * k;
         }
+
+        double Normal() => Math.Sqrt(-2 * Math.Log(1 - rng.NextDouble())) * Math.Cos(2 * Math.PI * rng.NextDouble());
 
         int Pick(Func<int, double> weight, int count)
         {
