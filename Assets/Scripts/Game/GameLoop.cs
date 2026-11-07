@@ -315,7 +315,7 @@ namespace Geisterfahrer.Game
             echo.enabled = inTunnel;
 
             // Haptic rumble on the edge line: 10 ms every 60 ms.
-            if (onEdgeLine && shaking && (rumbleTime -= dt) <= 0) { rumbleTime = 0.06f; Feedback.Vibrate(10, 120); }
+            if (onEdgeLine && shakeK > 0 && state == State.Playing && (rumbleTime -= dt) <= 0) { rumbleTime = 0.06f; Feedback.Vibrate(10, 120); }
 
             bool moving = state == State.Playing;
             // Engine with sound-only gears: rpm 2500-7500 inside each gear (look-spec 11.4).
