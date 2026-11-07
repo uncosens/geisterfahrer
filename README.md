@@ -2,7 +2,7 @@
 
 Endless wrong-way driving on the German Autobahn. Unity 6.3 (URP), Android, landscape. Personal use.
 
-- Game rules: [docs/plan/gdd-draft.md](docs/plan/gdd-draft.md) (v0.3, plus the director's changes: 4 lanes, start at 0 km/h, red 911, lateral offsets in lanes)
+- Game rules: [docs/plan/gdd-draft.md](docs/plan/gdd-draft.md) (final v0.4); decisions taken while the user was away: [docs/decisions.md](docs/decisions.md)
 - Tech plan: [docs/dev/unity-plan.md](docs/dev/unity-plan.md)
 - Art direction and UI: [docs/design/](docs/design/)
 - Third-party assets: [CREDITS.md](CREDITS.md)
@@ -11,17 +11,17 @@ Endless wrong-way driving on the German Autobahn. Unity 6.3 (URP), Android, land
 
 | Folder | Content |
 |---|---|
-| `Assets/Scripts/Core` | Pure C# rules, no Unity references: car force model, contacts and impulse, traffic spawning |
-| `Assets/Scripts/Game` | Unity side: `GameLoop` (views, camera), `Hud` (uGUI per `docs/design/ui-spec.md`), `RoadView`, `Feedback` (sparks, shake, haptics), `DriveInput`, placeholders, sounds |
-| `Assets/Scripts/Game/Editor` | `BuildScript`: `Setup` (materials, fonts, sky, post, scene) and the Android build |
+| `Assets/Scripts/Core` | Pure C# rules, no Unity references: car force model (scrub, grade), curve drift, contacts and impulse, traffic with wander and the safe corridor, procedural `Track` |
+| `Assets/Scripts/Game` | Unity side: `GameLoop` (views, camera, driving feel, sound layers), `Hud` (uGUI and 911 gauge per `docs/design/ui-spec.md`), `TrackView` (road mesh chunks), `Feedback` (sparks, shake, haptics), `DriveInput`, placeholders, sounds |
+| `Assets/Scripts/Game/Editor` | `BuildScript`: `Setup` (materials, fonts, sky, post, scene) and the Android build; `TrackShots` renders road features to `docs/dev/shots/track-*.png` |
 | `Assets/Tests/EditMode` | Tests for Core |
 | `tools/fetch-assets.sh` | Downloads the free sky, textures and fonts into the git-ignored `Assets/ThirdParty/` |
 
 All tuning numbers are in `Core/Tuning.cs` (editable on the `GameLoop` component). Lanes, vehicle sizes, masses and spawn weights are in `Core/Road.cs`.
 
-Core works in road space (lateral offset and distance along the road). Only `RoadView.Place` maps it to the world, so curves and hills can be added in the view later.
+Core works in road space (distance along the road, lateral offset). Only `TrackView.Place` maps it to the world along the generated centre line.
 
-Vehicles are primitive placeholders until the `.glb` files are in `Assets/ThirdParty/Vehicles/` (see CREDITS.md). `Placeholder.Fit` turns each model's long axis to z, scales it to the real length and puts it on the ground.
+Vehicle models are the `.glb` files in `Assets/ThirdParty/Vehicles/` (hand downloads, see CREDITS.md); without them the game uses primitive placeholders. `Placeholder.Fit` turns each model's long axis to z, scales it to the real length, grounds it, recolours its paint and glass, and flips models listed in `GameLoop.Flipped`.
 
 ## Build
 
@@ -40,6 +40,16 @@ Add `-release` to the build line for a non-development APK (`Builds/Android/geis
 Dev builds log `PERF fps … worst … ms` every 5 s: `adb -s <serial> logcat -s Unity | findstr PERF`.
 
 Controls: left half = steer (drag from where you touch), right half = accelerate. Editor: A/D or arrows, W or Space, Esc/P pause, Enter play/retry.
+
+## Checked (2026-11-07, GDD v0.4)
+
+| What | Where | Result |
+|---|---|---|
+| 42 EditMode tests: v0.3 set plus tyre scrub table, grade ceilings, curve drift at R 470/720/1000, safe corridor, wander, run start | batch mode | all pass |
+| Curve, crest, viaduct, tunnel portal and inside, overpass | `TrackShots` renders | look right (`docs/dev/shots/track-*.png`) |
+| Start at standstill, red 911 model facing forward, gauge needle and digits, distance, traffic models, crash grey-out, game over | emulator `rc4k` (`-force-gles`) | works (`v04-*.png`) |
+
+Not checked this round: the Galaxy Tab S7 was not connected, so no fps or Profiler numbers for the new road and effects, no two-thumb test, no sound check by ear.
 
 ## Checked (2026-11-06, art pass)
 
@@ -69,8 +79,9 @@ Not verified:
 
 ## Not done yet
 
-- Real vehicle models (download by hand, see CREDITS.md) and real sounds (generated tones now; Freesound needs a login). A downloaded 911 keeps its own paint colour.
+- Real sounds (generated tones now; Freesound needs a login).
 - Crash debris, smoke, scratch decals and dents; tree-line billboards; delineator reflectors; W-profile guardrail (a flat beam now).
 - Truck columns and the "tall vehicle hides the only free lane" rule (GDD 4.2, 5.3).
-- Curves, hills, tunnels, viaducts (GDD v0.4, waiting).
+- Corridor re-plan after big speed changes, truck columns, hidden-vehicle rule, crest row rule, vehicle fade-in (decisions 26, 29).
+- Cuttings and embankments (ground just follows the road height), tree lines, overpass shadow quad.
 - Android x86_64: Unity 6.3 no longer builds it.
