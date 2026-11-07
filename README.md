@@ -48,7 +48,7 @@ Controls: left half = steer (drag from where you touch), right half = accelerate
 | 55 EditMode tests: slower power model (0-100 5.7 s, 100-200 18.6 s, ceiling 247 km/h), +40 % steering, slower return, +40 % traffic, tunnel within 4 km for 30 seeds, two-finger input logic | batch mode | all pass |
 | Red 911, grey overpass and tunnel concrete, tunnel entry / inside / exit (`tab-tunnel-*.png`), traffic in many colours and 7 types (`tab-traffic.png`) | Galaxy Tab S7 | works |
 | Tap on Play does not start the run; the run starts on the first gas press (`RUNSTART` log) | Galaxy Tab S7 | works |
-| Shake only with gas held above 150 km/h (`shake` field of the PERF log) | Galaxy Tab S7 | 0.0 below 150 km/h and when coasting, 1.0 above 150 with gas |
+| Shake only with gas held (decision 39: from 200 km/h, replaced my 150 km/h rule; `shake` field of the PERF log, measured before the merge with the 150 km/h rule) | Galaxy Tab S7 | 0.0 at low speed and when coasting, 1.0 above the threshold with gas |
 | Autopilot runs, up to 215 km/h, tunnels, 3-7 cars on screen; stress run with 3.5 x traffic: 10-25 cars on screen | Galaxy Tab S7, dev build | 60.0 fps in every 5 s sample, worst frame 16.9 ms (blips of 33-42 ms only at a crash restart), 87-93 MB |
 
 Not checked: two real thumbs at once on glass (adb injects one finger; the logic is covered by `InputTests`), vibration and sound by ear, the paint tint on the Van model by eye.

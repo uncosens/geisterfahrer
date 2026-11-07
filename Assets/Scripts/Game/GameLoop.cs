@@ -22,6 +22,7 @@ namespace Geisterfahrer.Game
         Feedback fx;
         Camera cam;
         Transform player;
+        VehicleFx playerFx;
         AudioSource engine, scrape, crash, hit, tyre, wind, whoosh, rumble;
         AudioLowPassFilter windFilter;
         AudioReverbFilter echo;
@@ -31,10 +32,11 @@ namespace Geisterfahrer.Game
         ColorAdjustments grade;
         Vignette vignette;
         readonly Dictionary<Vehicle, GameObject> views = new Dictionary<Vehicle, GameObject>();
+        readonly Dictionary<Vehicle, float> births = new Dictionary<Vehicle, float>();
         readonly List<Vehicle> gone = new List<Vehicle>();
         readonly List<GameObject>[] pools = new List<GameObject>[Road.Types.Length];
         readonly int[] lastPaint = new int[Road.Types.Length];
-        float camX, camVel, dyingTime;
+        float camX, camVel, dyingTime, shakeK;
         // Driving feel (look-spec 11): smoothed camera and body values.
         float fovH = 80, kick, camBack = 6.5f, camYaw, camRoll, lastV, pitch, pitchVel, bodyRoll, bodyRollVel, rumbleTime;
         int lastHits, seed;
@@ -83,11 +85,13 @@ namespace Geisterfahrer.Game
             echo.enabled = false;
 
             road = new GameObject("Road").AddComponent<TrackView>();
+            VehicleFx.Init(art.spark);
             float pl = (float)Road.PlayerLength;
             var playerGo = art.player ? Placeholder.Fit(art.player, pl, "Player", Flipped.Contains("Player"), false)
                 : Placeholder.PaintableVehicle("Player", pl, (float)Road.PlayerWidth, 1.3f);
             playerGo.GetComponent<Paintable>().Paint(Placeholder.PlayerRed); // every paint material of the model becomes the red 911
             player = playerGo.transform;
+            playerFx = VehicleFx.Attach(playerGo, true);
             for (int i = 0; i < pools.Length; i++) pools[i] = new List<GameObject>();
             Prewarm();
 
@@ -126,11 +130,12 @@ namespace Geisterfahrer.Game
         void NewRun()
         {
             foreach (var kv in views) Release(kv.Key, kv.Value);
-            views.Clear();
+            views.Clear(); births.Clear();
             wasStarted = false;
             run = new Run(tuning, seed++);
             road.Init(art, run.Track);
             lastHits = 0;
+            if (playerFx) playerFx.ClearScratches();
             camX = (float)run.X;
             Time.timeScale = 1;
             if (grade) { grade.saturation.value = -6; grade.postExposure.value = 0; }
@@ -212,7 +217,7 @@ namespace Geisterfahrer.Game
             perfFrames++;
             perfWorst = Mathf.Max(perfWorst, Time.unscaledDeltaTime);
             if ((perfTime += Time.unscaledDeltaTime) < 5) return;
-            Debug.Log($"PERF fps {perfFrames / perfTime:F1} worst {perfWorst * 1000:F1} ms vehicles {run.Vehicles.Count} kmh {run.V * 3.6:F0} shake {shakeGain:F1} gas {(input.Gas ? 1 : 0)} section {run.Track.KindAt(run.Distance)} mem {UnityEngine.Profiling.Profiler.GetTotalAllocatedMemoryLong() >> 20} MB");
+            Debug.Log($"PERF fps {perfFrames / perfTime:F1} worst {perfWorst * 1000:F1} ms vehicles {run.Vehicles.Count} kmh {run.V * 3.6:F0} shake {shakeK:F1} gas {(input.Gas ? 1 : 0)} section {run.Track.KindAt(run.Distance)} mem {UnityEngine.Profiling.Profiler.GetTotalAllocatedMemoryLong() >> 20} MB");
             perfTime = perfWorst = 0; perfFrames = 0;
         }
 
@@ -233,6 +238,7 @@ namespace Geisterfahrer.Game
                 lastHits = run.Hits;
                 float j = (float)run.LastImpulse;
                 fx.Hit(point, side, j);
+                playerFx.Scratch(side, Mathf.Clamp((float)run.HitZ, -2, 2));
                 bodyRollVel += 1.5f * j / 6 * 20 * (side < 0 ? 1 : -1); // roll kick
                 if (side != 0) hud.Flash(side < 0 ? 0 : 1, Mathf.Min(0.33f, 0.15f + 0.03f * j), 0.06f, 0.2f);
                 hit.volume = 0.5f + 0.08f * j;
@@ -273,10 +279,15 @@ namespace Geisterfahrer.Game
             Spring(ref bodyRoll, ref bodyRollVel, Mathf.Clamp(-0.35f * (float)run.Side, -2.2f, 2.2f), 9, 0.6f, dt);
             float lookYaw = Mathf.Clamp((float)(run.Yaw * Mathf.Rad2Deg * 2), -6, 6);
             player.SetPositionAndRotation(TrackView.Place(0, (float)run.X), TrackView.Facing(0) * Quaternion.Euler(pitch, lookYaw, bodyRoll));
+            playerFx.Drive((float)run.V, Time.deltaTime, input.Steer * 25);
 
             foreach (var v in run.Vehicles)
             {
-                if (!views.TryGetValue(v, out var go)) views[v] = go = Take(v.Type);
+                if (!views.TryGetValue(v, out var go)) { views[v] = go = Take(v.Type); births[v] = Time.time; }
+                // Fade-in by scale over 0.4 s (decision 41): no transparent car materials.
+                float grow = Mathf.SmoothStep(0, 1, (Time.time - births[v]) / 0.4f);
+                go.transform.localScale = Vector3.one * Mathf.Max(grow, 0.001f);
+                if (v.Z < 150) go.GetComponent<VehicleFx>().Drive((float)v.Speed, Time.deltaTime);
                 go.transform.SetPositionAndRotation(TrackView.Place((float)v.Z, (float)v.X), TrackView.Facing((float)v.Z) * Quaternion.Euler(0, 180, 0)); // oncoming
                 // Passing whoosh when a vehicle passes within 6 m sideways (look-spec 11.4).
                 if (state == State.Playing && v.Z < 0 && v.Z > -(v.Speed + run.V) * Time.deltaTime - 0.01 && System.Math.Abs(v.X - run.X) < 6)
@@ -288,7 +299,7 @@ namespace Geisterfahrer.Game
             }
             gone.Clear();
             foreach (var kv in views) if (!run.Vehicles.Contains(kv.Key)) gone.Add(kv.Key);
-            foreach (var v in gone) { Release(v, views[v]); views.Remove(v); }
+            foreach (var v in gone) { Release(v, views[v]); views.Remove(v); births.Remove(v); }
 
             // Chase camera (look-spec 5, 11.1): distance grows with speed, lags the car sideways, rolls with side speed.
             var section = run.Track.KindAt(run.Distance);
@@ -298,14 +309,14 @@ namespace Geisterfahrer.Game
             camYaw = Mathf.Lerp(camYaw, (float)(run.Yaw * Mathf.Rad2Deg), dt * 8);
             camRoll = Mathf.Lerp(camRoll, Mathf.Clamp(-0.25f * (float)run.Side, -1.8f, 1.8f), dt / 0.2f);
             fx.ShakeOffset(out var sp, out var sr);
-            // Shake and road vibration only while accelerating at high speed: throttle held and above 150 km/h (decision 36).
-            // Never at low or steady speed, or when coasting. Eased in and out over 0.3 s; scaled by speed and surface.
-            bool shaking = state == State.Playing && input.Gas && kmh > ShakeFromKmh;
-            shakeGain = Mathf.MoveTowards(shakeGain, shaking ? 1 : 0, dt / 0.3f);
+            // Speed shake only while accelerating at 200+ km/h (decision 39); the edge-line rumble follows the same gate.
+            bool over = state == State.Over;
+            float target = (float)Shake.Amount(kmh, input.Gas && state == State.Playing, over);
+            shakeK = over ? 0 : Mathf.MoveTowards(shakeK, target, dt * 4);
+            if (over) { sp = Vector3.zero; sr = Vector2.zero; } // game over: nothing moves the camera
             float surf = section == Section.Tunnel ? 0.8f : section == Section.Viaduct ? 1.2f : 1;
-            float q = shakeGain * Mathf.Clamp01((kmh - ShakeFromKmh) / 100 + 0.3f) * (kmh / 100) * (kmh / 100) * surf;
             float f = (onEdgeLine ? 30 : 12 + kmh / 10) * Time.unscaledTime;
-            float amp = Mathf.Min(0.03f, 0.004f * q) + (onEdgeLine ? 0.006f * shakeGain : 0), rot = Mathf.Min(0.35f, 0.05f * q);
+            float amp = (0.03f * surf + (onEdgeLine ? 0.006f : 0)) * (float)Shake.ShakeScale * shakeK, rot = 0.35f * (float)Shake.ShakeScale * shakeK;
             sp += new Vector3(Mathf.PerlinNoise(f, 11) - 0.5f, Mathf.PerlinNoise(f, 12) - 0.5f, 0) * 2 * amp;
             sr += new Vector2(Mathf.PerlinNoise(f, 13) - 0.5f, Mathf.PerlinNoise(f, 14) - 0.5f) * 2 * rot;
             cam.transform.position = TrackView.Place(-camBack, camX, 2.7f) + sp;
@@ -338,7 +349,7 @@ namespace Geisterfahrer.Game
             echo.enabled = inTunnel;
 
             // Haptic rumble on the edge line: 10 ms every 60 ms.
-            if (onEdgeLine && shaking && (rumbleTime -= dt) <= 0) { rumbleTime = 0.06f; Feedback.Vibrate(10, 120); }
+            if (onEdgeLine && shakeK > 0 && state == State.Playing && (rumbleTime -= dt) <= 0) { rumbleTime = 0.06f; Feedback.Vibrate(10, 120); }
 
             bool moving = state == State.Playing;
             // Engine with sound-only gears: rpm 2500-7500 inside each gear (look-spec 11.4).
@@ -362,8 +373,6 @@ namespace Geisterfahrer.Game
 
         // Downloaded models that were built facing backwards (checked on screen).
         static readonly HashSet<string> Flipped = new HashSet<string> { "Player" };
-        const float ShakeFromKmh = 150;
-        float shakeGain;
 
         static readonly float[] Shifts = { 0, 70, 110, 150, 195, 240, 285, 400 }; // sound-only gear tops, km/h
 
@@ -427,6 +436,7 @@ namespace Geisterfahrer.Game
                 ? Placeholder.Fit(models[Random.Range(0, models.Length)], (float)t.Length, t.Name, Flipped.Contains(t.ModelKey), t.Name != "Bus" && t.Name != "Truck")
                 : Placeholder.PaintableVehicle(t.Name, (float)t.Length, (float)t.Width, (float)t.Height, t.Name == "Truck" ? Placeholder.Trailer : null);
             go.GetComponent<Paintable>().Paint(Placeholder.RandomPaint(ref lastPaint[type]));
+            VehicleFx.Attach(go, false);
             return go;
         }
 
