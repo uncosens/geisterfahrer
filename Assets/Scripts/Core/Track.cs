@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Geisterfahrer.Core
 {
-    public enum Section { Open, Tunnel, Viaduct }
+    public enum Section { Open, Tunnel, Viaduct, Underground }
 
     // Endless procedural road (GDD 6), generated ahead of the player as functions of road distance s:
     // curvature (1/R, + = curve to the player's right), grade (rise/run), structures and overpass points.
@@ -33,7 +33,31 @@ namespace Geisterfahrer.Core
         }
 
         public double Curvature(double s) => Lerp(hs, hk, s);
-        public double Grade(double s) => Lerp(vs, vg, s);
+        // Terrain grade; the road itself dips below it in an underground section (Depth).
+        public double GradeBase(double s) => Lerp(vs, vg, s);
+        public double Grade(double s) => GradeBase(s) - (Depth(s + 0.5) - Depth(s - 0.5));
+
+        // Underground section (cut-and-cover): the road sinks UgDepth below the terrain over UgRamp m, runs level, and rises again.
+        // Smoothstep ramp: steepest slope 1.5 x UgDepth / UgRamp = 3.5 %.
+        public const double UgDepth = 8, UgRamp = 340, UgRoof = 6.5; // m below terrain; roof starts where the depth reaches UgRoof
+        public double Depth(double s)
+        {
+            double d = 0;
+            foreach (var st in Structures)
+            {
+                if (st.kind != Section.Underground || s <= st.s0 || s >= st.s1) continue;
+                double u = Math.Min(1, Math.Min(s - st.s0, st.s1 - s) / UgRamp);
+                d = Math.Max(d, UgDepth * u * u * (3 - 2 * u));
+            }
+            return d;
+        }
+
+        // True where the road is under a roof (bore or underground box): lit, echo, no sun.
+        public bool Covered(double s)
+        {
+            var k = KindAt(s);
+            return k == Section.Tunnel || (k == Section.Underground && Depth(s) >= UgRoof);
+        }
         public double Generated => Math.Min(hs[hs.Count - 1], vs[vs.Count - 1]);
 
         public Section KindAt(double s)
@@ -69,10 +93,10 @@ namespace Geisterfahrer.Core
         {
             double s = hs[hs.Count - 1];
             bool first = s == 0;
-            double straight = first ? Rand(1500, 2500) : Rand(StraightLen[phase, 0], StraightLen[phase, 1]); // long first straight: flat start and the first tunnel (decision 27)
-            // Tunnel host: after 3 km of road without one, the next straight is made at least 1000 m long and gets a tunnel.
-            bool host = first || geomSinceTunnel > 3000;
-            if (host && straight < 1000) straight = Rand(1000, 1500);
+            double straight = first ? Rand(1500, 2500) : Rand(StraightLen[phase, 0], StraightLen[phase, 1]); // long first straight: flat start (decision 27)
+            // Tunnel host: after 3 km of road without one, the next straight is made at least 1400 m long and gets a tunnel.
+            bool host = geomSinceTunnel > 3000;
+            if (host && straight < 1400) straight = Rand(1400, 2000);
             if (host) { tunnelStraights.Add(s); geomSinceTunnel = 0; } else geomSinceTunnel += straight;
             Knot(hs, hk, s + straight, 0);
             int side = rng.Next(2) * 2 - 1;
@@ -119,10 +143,10 @@ namespace Geisterfahrer.Core
         // (GDD says constant grade; with +-4 % hills that almost never fits, decision 37.)
         bool NoCrest(double a, double b)
         {
-            double g = Grade(a);
+            double g = GradeBase(a);
             for (double x = a + 50; x <= b; x += 50)
             {
-                double next = Grade(x);
+                double next = GradeBase(x);
                 if (next < g - 0.001) return false;
                 g = Math.Max(g, next);
             }
@@ -151,11 +175,10 @@ namespace Geisterfahrer.Core
             }
         }
 
-        // Tunnels sit on straights: every straight of at least 500 m (after the first 500 m of the run) gets one with chance TunnelPerStraight,
-        // and the first straight that qualifies always does, so the first tunnel comes within the first minute.
-        // The portal has 200 m of straight road before it and the grade must not fall inside it (no crest).
-        // The old per-km roll in the phase at generation time never fired in the first minute: the road is built 2.5 km ahead.
-        const double TunnelPerStraight = 0.9;
+        // Tunnels sit on straights, never in the first FirstTunnel metres, with a random chance per straight and MinGap between structures.
+        // Two kinds, mixed at random: an earth mound over a bore (no crest inside), or an underground box (flat terrain on top,
+        // needs a nearly level terrain on the ramps so they stay under 5 %). 200 m of straight road lead to each portal.
+        public const double FirstTunnel = 1500, TunnelPerStraight = 0.5, UndergroundShare = 0.5, MinGap = 700;
 
         void AddTunnels(double upTo)
         {
@@ -164,18 +187,32 @@ namespace Geisterfahrer.Core
                 double a = hs[i], b = hs[i + 1];
                 if (hk[i] != 0 || hk[i + 1] != 0 || b > upTo || a < tunnelScan) continue;
                 tunnelScan = b;
-                if (b - a < 500 || Structures.Exists(x => x.s0 < b && x.s1 > a - 300)) continue;
-                bool must = tunnelStraights.Contains(a) || !Structures.Exists(x => x.kind == Section.Tunnel);
-                if (!must && rng.NextDouble() >= TunnelPerStraight) continue;
-                for (double at = Math.Max(a + 200, 500); at + 300 <= b; at += 50)
+                if (b - a < 500 || Structures.Exists(x => x.s0 < b + MinGap && x.s1 > a - MinGap)) continue;
+                if (!tunnelStraights.Contains(a) && rng.NextDouble() >= TunnelPerStraight) continue;
+                bool underground = rng.NextDouble() < UndergroundShare;
+                if (underground)
+                {
+                    double len = Math.Floor(Rand(800, 1300) / 4) * 4;
+                    for (double at = Math.Ceiling(Math.Max(a + 200, FirstTunnel) / 4) * 4; at + len + 100 <= b; at += 52)
+                        if (Level(at, at + len)) { Structures.Add((at, at + len, Section.Underground)); break; }
+                    if (Structures.Exists(x => x.s0 >= a && x.s0 < b)) continue; // else fall back to a mound tunnel on this straight
+                }
+                for (double at = Math.Ceiling(Math.Max(a + 200, FirstTunnel) / 4) * 4; at + 300 <= b; at += 52)
                 {
                     double room = 0;
                     while (room < 1500 && at + room + 100 <= b && NoCrest(at, at + room + 100)) room += 100;
                     if (room < 300) continue;
-                    Structures.Add((at, at + Rand(300, room), Section.Tunnel));
+                    Structures.Add((at, at + Math.Floor(Rand(300, room) / 4) * 4, Section.Tunnel));
                     break;
                 }
             }
+        }
+
+        // Terrain grade within 1.2 % over both ramps: the ramp slope adds up to 3.5 % on top. The middle may follow any hill.
+        bool Level(double a, double b)
+        {
+            for (double x = a; x <= a + UgRamp; x += 50) if (Math.Abs(GradeBase(x)) > 0.012 || Math.Abs(GradeBase(b - (x - a))) > 0.012) return false;
+            return true;
         }
 
         bool Busy(double a, double b)

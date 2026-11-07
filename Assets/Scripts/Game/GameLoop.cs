@@ -38,9 +38,10 @@ namespace Geisterfahrer.Game
         readonly int[] lastPaint = new int[Road.Types.Length];
         float camX, camVel, dyingTime, shakeK;
         // Driving feel (look-spec 11): smoothed camera and body values.
-        float fovH = 80, kick, camBack = 6.5f, camYaw, camRoll, lastV, pitch, pitchVel, bodyRoll, bodyRollVel, rumbleTime;
+        float fovH = 80, gasK, camBack = 6.5f, camYaw, camRoll, lastV, pitch, pitchVel, bodyRoll, bodyRollVel, rumbleTime;
         int lastHits, seed;
 
+        const float CamHeight = 2.7f, ThrottleDrop = 0.4f, ThrottleNarrow = 5f, ThrottleIn = 0.4f, ThrottleOut = 0.6f; // metres, degrees, seconds
         static readonly Color Sky = Placeholder.Hex(0xC9D6E2);
 
         void Awake()
@@ -303,6 +304,7 @@ namespace Geisterfahrer.Game
 
             // Chase camera (look-spec 5, 11.1): distance grows with speed, lags the car sideways, rolls with side speed.
             var section = run.Track.KindAt(run.Distance);
+            bool covered = run.Track.Covered(run.Distance); // bore or underground box: lit, echo, no sun
             bool onEdgeLine = System.Math.Abs(run.X) + Road.PlayerWidth / 2 > Road.LaneCount * Road.LaneWidth / 2 && run.V > 1;
             camBack = Mathf.Lerp(camBack, Mathf.Lerp(6.5f, 7.2f, sp01), dt / 0.8f);
             camX = Mathf.SmoothDamp(camX, (float)run.X, ref camVel, 0.3f, Mathf.Infinity, dt);
@@ -314,20 +316,24 @@ namespace Geisterfahrer.Game
             float target = (float)Shake.Amount(kmh, input.Gas && state == State.Playing, over);
             shakeK = over ? 0 : Mathf.MoveTowards(shakeK, target, dt * 4);
             if (over) { sp = Vector3.zero; sr = Vector2.zero; } // game over: nothing moves the camera
-            float surf = section == Section.Tunnel ? 0.8f : section == Section.Viaduct ? 1.2f : 1;
+            float surf = covered ? 0.8f : section == Section.Viaduct ? 1.2f : 1;
             float f = (onEdgeLine ? 30 : 12 + kmh / 10) * Time.unscaledTime;
             float amp = (0.03f * surf + (onEdgeLine ? 0.006f : 0)) * (float)Shake.ShakeScale * shakeK, rot = 0.35f * (float)Shake.ShakeScale * shakeK;
             sp += new Vector3(Mathf.PerlinNoise(f, 11) - 0.5f, Mathf.PerlinNoise(f, 12) - 0.5f, 0) * 2 * amp;
             sr += new Vector2(Mathf.PerlinNoise(f, 13) - 0.5f, Mathf.PerlinNoise(f, 14) - 0.5f) * 2 * rot;
-            cam.transform.position = TrackView.Place(-camBack, camX, 2.7f) + sp;
+            // On throttle the camera sinks and the FOV narrows, so the far view looks tighter (decision 45). Eased in 0.4 s, out 0.6 s.
+            bool gas = input.Gas && state == State.Playing;
+            gasK = Mathf.MoveTowards(gasK, gas ? 1 : 0, dt / (gas ? ThrottleIn : ThrottleOut));
+            float gasE = gasK * gasK * (3 - 2 * gasK);
+            cam.transform.position = TrackView.Place(-camBack, camX, CamHeight - ThrottleDrop * gasE) + sp;
             cam.transform.LookAt(TrackView.Place(14, camX, 0.8f));
             cam.transform.Rotate(sr.x, sr.y + camYaw * 0.5f, camRoll);
 
-            // FOV as a horizontal angle (GDD 5.1: at least 75 deg): 80 + 12 s^1.5 plus a 1.5 deg throttle kick,
+            // FOV as a horizontal angle (GDD 5.1: at least 75 deg): 80 + 12 s^1.5 with the throttle narrowing applied last,
             // turned into Unity's vertical FOV for this screen.
-            kick = Mathf.MoveTowards(kick, input.Gas && accel > 1 && state == State.Playing ? 1.5f : 0, dt * 1.5f / (kick < 1.5f ? 0.4f : 0.6f));
-            fovH = Mathf.Lerp(fovH, 80 + 12 * Mathf.Pow(sp01, 1.5f) + kick, dt / 0.5f);
+            fovH = Mathf.Lerp(fovH, 80 + 12 * Mathf.Pow(sp01, 1.5f), dt / 0.5f);
             float fov = Mathf.Max(2 * Mathf.Atan(Mathf.Tan(fovH / 2 * Mathf.Deg2Rad) / cam.aspect) * Mathf.Rad2Deg, 50 + 6 * Mathf.Pow(sp01, 1.5f));
+            fov -= ThrottleNarrow * gasE;
             if (state == State.Dying || state == State.Over) // FOV punch: -5 in 0.08 s, back over 0.6 s
                 fov -= 5 * (dyingTime < 0.08f ? dyingTime / 0.08f : Mathf.Clamp01(1 - (dyingTime - 0.08f) / 0.6f));
             cam.fieldOfView = fov;
@@ -343,7 +349,7 @@ namespace Geisterfahrer.Game
             streaks.GetComponent<ParticleSystemRenderer>().lengthScale = 0.06f * (float)run.V;
 
             // Tunnel: exposure adapts over 0.5 s; sun and sky light fade inside; echo on.
-            bool inTunnel = section == Section.Tunnel;
+            bool inTunnel = covered;
             sun.intensity = Mathf.MoveTowards(sun.intensity, inTunnel ? sunIntensity * 0.4f : sunIntensity, dt * sunIntensity * 2);
             RenderSettings.ambientIntensity = Mathf.MoveTowards(RenderSettings.ambientIntensity, inTunnel ? ambient * 0.9f : ambient, dt * 2);
             echo.enabled = inTunnel;
@@ -358,7 +364,7 @@ namespace Geisterfahrer.Game
             float rpm = Mathf.Lerp(2500, 7500, Mathf.InverseLerp(gear > 1 ? Shifts[gear - 1] * 0.9f : 0, Shifts[gear], kmh));
             engine.volume = moving ? (input.Gas ? 0.9f : 0.6f) * 0.3f : 0;
             engine.pitch = rpm / 4000;
-            float tyreMul = section == Section.Viaduct ? 1.2f : section == Section.Tunnel ? 1.3f : 1;
+            float tyreMul = section == Section.Viaduct ? 1.2f : covered ? 1.3f : 1;
             tyre.volume = moving ? 0.6f * Mathf.Pow(Mathf.Clamp01((kmh - 30) / 250), 1.2f) * tyreMul * 0.4f : 0;
             tyre.pitch = (0.8f + 0.4f * sp01) * (section == Section.Viaduct ? 1.05f : 1);
             wind.volume = moving ? 0.8f * sp01 * sp01 * (inTunnel ? 0.5f : 1) * 0.4f : 0;

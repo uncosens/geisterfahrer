@@ -263,16 +263,29 @@ namespace Geisterfahrer.Tests
             Assert.Less(r.X, x0); // curve to the right pushes the car left
         }
 
-        // Tunnels from the first minute (about 4 km): the road is generated ahead in phase 1, so this checks the generator itself.
+        // Tunnels are regular but random: none in the first 1.5 km, both kinds appear, and the spacing is not fixed.
         [Test]
-        public void TunnelWithinTheFirstFourKm()
+        public void TunnelsStartAfterFirstKmAndMixKinds()
         {
-            for (int seed = 1; seed <= 30; seed++)
+            int mound = 0, under = 0;
+            var gaps = new HashSet<int>();
+            for (int seed = 1; seed <= 20; seed++)
             {
                 var t = new Track(seed);
-                for (double s = 0; s <= 1500; s += 100) t.Ensure(s, 0); // road to 4 km, all generated in phase 1
-                Assert.IsTrue(t.Structures.Exists(x => x.kind == Section.Tunnel && x.s0 < 4000), $"seed {seed}");
+                t.Ensure(14000, 3);
+                double last = -1;
+                foreach (var st in t.Structures)
+                {
+                    if (st.kind != Section.Tunnel && st.kind != Section.Underground) continue;
+                    Assert.GreaterOrEqual(st.s0, Track.FirstTunnel, $"seed {seed}");
+                    if (st.kind == Section.Tunnel) mound++; else under++;
+                    if (last >= 0) gaps.Add((int)((st.s0 - last) / 500));
+                    last = st.s1;
+                }
             }
+            Assert.Greater(mound, 5, $"mound {mound} under {under}");
+            Assert.Greater(under, 2, $"mound {mound} under {under}");
+            Assert.Greater(gaps.Count, 3);
         }
 
         [Test]
@@ -281,11 +294,38 @@ namespace Geisterfahrer.Tests
             var t = new Track(5);
             t.Ensure(20000, 3);
             foreach (var st in t.Structures)
-                if (st.kind == Section.Tunnel)
+                if (st.kind == Section.Tunnel || st.kind == Section.Underground)
                 {
-                    Assert.GreaterOrEqual(st.s1 - st.s0, 300);
+                    Assert.GreaterOrEqual(st.s1 - st.s0, st.kind == Section.Tunnel ? 300 : 900);
                     for (double s = st.s0 - 200; s < st.s1; s += 10) Assert.AreEqual(0, t.Curvature(s), 1e-12);
                 }
+        }
+
+        // Underground: the road sinks 8 m below the terrain and comes back to the same height; ramps stay under 5 %.
+        [Test]
+        public void UndergroundRampsAreGentleAndReturnToTerrain()
+        {
+            int n = 0;
+            for (int seed = 1; seed <= 20; seed++)
+            {
+                var t = new Track(seed);
+                t.Ensure(14000, 3);
+                foreach (var st in t.Structures)
+                {
+                    if (st.kind != Section.Underground) continue;
+                    n++;
+                    Assert.AreEqual(0, t.Depth(st.s0), 1e-9);
+                    Assert.AreEqual(Track.UgDepth, t.Depth((st.s0 + st.s1) / 2), 1e-9);
+                    Assert.AreEqual(0, t.Depth(st.s1), 1e-9);
+                    for (double s = st.s0; s < st.s1; s += 5) Assert.Less(Math.Abs(t.Grade(s)), 0.05, $"seed {seed} s {s}");
+                    // Road height equals terrain height minus depth.
+                    int i = (int)((st.s0 + st.s1) / 2 / Track.SampleStep);
+                    double terrain = t.Y[(int)(st.s0 / Track.SampleStep)];
+                    for (double s = st.s0; s < (st.s0 + st.s1) / 2; s += 2) terrain += t.GradeBase(s) * 2;
+                    Assert.AreEqual(terrain - Track.UgDepth, t.Y[i], 0.2, $"seed {seed}");
+                }
+            }
+            Assert.Greater(n, 2, $"n {n}");
         }
 
         // User changes: +40 % steering, return to straight twice as slow, +40 % traffic.

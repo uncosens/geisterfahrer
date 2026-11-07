@@ -16,8 +16,13 @@ namespace Geisterfahrer.Editor
             EditorSceneManager.OpenScene("Assets/Scenes/Game.unity");
             var art = Object.FindAnyObjectByType<GameLoop>().art;
             Placeholder.BaseMat = art.baseLit;
-            var track = new Track(1);
-            track.Ensure(30000, 3); // phase 4 rules: all structures on
+            Track track = null;
+            for (int seed = 1; seed < 40; seed++) // the first seed with an underground section in 30 km
+            {
+                track = new Track(seed);
+                track.Ensure(30000, 3); // phase 4 rules: all structures on
+                if (track.Structures.Exists(x => x.kind == Section.Underground)) break;
+            }
             foreach (var st in track.Structures) Debug.Log($"SHOT structure {st.kind} {st.s0:F0}-{st.s1:F0}");
             var view = new GameObject("Road").AddComponent<TrackView>();
             view.Init(art, track);
@@ -54,9 +59,24 @@ namespace Geisterfahrer.Editor
             if (curve > 0) { Shot("curve", curve - 250); Shot("curve", curve - 250); } // first render in batch mode comes out wrong; render twice
             double crest = Find(s => track.Grade(s) > 0.015 && track.Grade(s + 600) < -0.01);
             if (crest > 0) Shot("hill", crest);
+            bool m = false, u = false;
             foreach (var st in track.Structures)
             {
-                if (st.kind == Section.Tunnel) { Shot("tunnel-portal", st.s0 - 150); Shot("tunnel-inside", st.s0 + 150); Shot("tunnel-exit", st.s1 - 60); break; }
+                if (st.kind == Section.Tunnel && !m)
+                {
+                    m = true;
+                    Shot("tunnel-400m", st.s0 - 400); Shot("tunnel-400m", st.s0 - 400);
+                    Shot("tunnel-sign", st.s0 - 190); Shot("tunnel-cutting", st.s0 - 80); Shot("tunnel-portal", st.s0 - 25);
+                    Shot("tunnel-inside", st.s0 + 150); Shot("tunnel-exit", st.s1 - 60); Shot("tunnel-after", st.s1 + 60);
+                }
+                if (st.kind == Section.Underground && !u)
+                {
+                    u = true;
+                    double roof = st.s0; while (track.Depth(roof) < Track.UgRoof) roof += 4;
+                    Shot("ug-400m", st.s0 - 400); Shot("ug-400m", st.s0 - 400);
+                    Shot("ug-sign", st.s0 - 130); Shot("ug-ramp", st.s0 + 150); Shot("ug-mouth", roof - 40);
+                    Shot("ug-inside", roof + 100); Shot("ug-exit", st.s1 - 60);
+                }
             }
             foreach (var st in track.Structures)
                 if (st.kind == Section.Viaduct) { Shot("viaduct", st.s0 + 100); break; }

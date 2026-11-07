@@ -18,8 +18,9 @@ Changes from v0.4 (user playtest, applied by the developer, `docs/decisions.md` 
 - Steering: max side speed 7 → **9.8 m/s** and side-speed limit 0.25 × v → **0.35 × v** (+40 %); return to straight after the finger lifts: time constant 0.15 → **0.30 s** (2.2).
 - Acceleration: power 260 → **140 kW**, new drive traction limit **μ_drive 0.60** (grip μ 0.85 stays for scrub and curve drift). 0–100 km/h **5.7 s**, 100–200 km/h **18.6 s**, flat ceiling **247 km/h** (240 km/h only after about a minute of clean driving). All speed tables in 2.2 are redone for this model.
 - Traffic density **+40 %** in every phase (2.4). Two more vehicle types and 17 paint colours (4.1).
-- Tunnels from the first minute: every straight of 500 m or more after the first 500 m gets one with 90 %, the first always (6.4, 6.5).
-- Camera and road shake only while the accelerator is held above **150 km/h** (5.1).
+- Tunnels are regular but random: none in the first 1.5 km, then a 50 % chance per straight of 500 m or more, two kinds: earth-mound bore or underground cut-and-cover box (6.4, 6.5).
+- On throttle the camera sinks 0.4 m and the FOV narrows 5° (eased in 0.4 s, out 0.6 s); this combines with the speed FOV (5.1).
+- Camera and road shake only while the accelerator is held above **200 km/h**, growing to 400 km/h, at 40 % of the old amplitude (5.1).
 - Overpass and tunnel concrete mid-grey `#7A7C80`, matte; steel rails and fields toned down; sun 1.35.
 
 Changes from v0.3:
@@ -579,10 +580,9 @@ So:
 - Grade feeds `F_grade` in the force model (2.2).
 
 **Tunnels:**
-- On straights only: any straight of 500 m or more, starting after the first 500 m of the run, gets a tunnel with 90 % chance, and the first qualifying straight always does (the road is generated 2.5 km ahead, so a phase-based chance never fired in the first minute).
-- After 3 km of road without a tunnel the generator makes the next straight at least 1000 m long and puts a tunnel on it, so tunnels come about every 2.5–4 km.
-- Length 300–1500 m. Straight, no crest inside (it may climb or sag). 200 m straight before each portal (5.4).
-- Cross-section: a round bore. Vertical walls up to 1.0 m on the rail lines, then a half-ellipse vault of 6.5 m rise (4.6 m clearance at the lane edge). Earth mound over it, concrete portal ring at entry and exit, lamps along the crown.
+- On straights only, never in the first 1.5 km of the run: each straight of 500 m or more has a 50 % chance (at least 700 m from any other structure). After 3 km of road without a tunnel the next straight is made at least 1400 m long and gets one. Spacing is random, about every 2.5–5 km.
+- **Mound tunnel** (length 300–1500 m, no crest inside, 200 m straight before each portal, 5.4): a round bore, vertical walls up to 1.0 m on the rail lines, then a half-ellipse vault of 6.5 m rise (4.6 m clearance at the lane edge). The ground rises over 300 m to an 8.7 m soft hill (flat top, about 240 m wide, gone at 130 m from the road) so the mound is a long slope, not a lump. Before each portal the road runs in a cutting: concrete wing walls rising to 4.5 m over the last 40 m, grass slopes 1 : 2.5, an earth face around the concrete portal ring. Lamp poles along the last 150 m, a tunnel sign and an 80 km/h sign 170 m ahead, trees on the hill, a small control building beside some entry portals.
+- **Underground tunnel** (length 800–1300 m, chosen about half of the time where the terrain is within 1.2 % on both ramps): the road sinks 8 m below the terrain over 340 m (smoothstep, steepest 3.5 %, so at most about 4.7 % with the terrain), then runs in a covered box (6.0 m clear height, walls 0.5 m outside the rails, roof slab) with ceiling lights, and rises again. The ramps are U-shaped trenches with concrete retaining walls and the guardrail; where the depth reaches 6.5 m a roof starts with a lintel. Fields, trees and houses continue on top; the terrain does not move. Sun, ambient light and echo follow the covered part (`Track.Covered`).
 - Walls replace rails: same collision line, infinite mass. Lit with a row of ceiling lights; brighter entry and exit zones (about 100 m).
 - Density × 0.7 inside.
 
@@ -607,7 +607,7 @@ The generator appends one horizontal element at a time (straight or curve), then
 | Max grade | ±1 % | ±2.5 % | ±4 % | ±4 % |
 | Overpasses | every 1–2 km | every 1–2 km | every 1–2 km | every 1–2 km |
 | Viaducts | none | 1 per 5 km | 1 per 5 km | 1 per 4 km |
-| Tunnels | on 90 % of straights ≥ 500 m, the first one always | same | same | same |
+| Tunnels | 50 % of straights ≥ 500 m after 1.5 km, mound or underground | same | same | same |
 
 - "1 per X km" = chance per km of road generated (e.g. 1/5 per km).
 - In phase 1 the player covers about 0.9 km (from 0, holding the accelerator), so the first section is a straight of at least 800 m: the start is always straight and flat.
