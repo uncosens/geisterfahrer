@@ -28,6 +28,10 @@ On each page: Download 3D Model → **glTF Binary (.glb)**. Save the file under 
 | `Van.glb` | https://sketchfab.com/3d-models/mercedes-sprinter-passenger-d3029b62317c4956bd0a28140ffef83d | "Mercedes Sprinter Passenger" by kuwalol93 (https://sketchfab.com/kuwalol93), licensed under CC BY 4.0, modified (scaled) |
 | `Bus.glb` | https://sketchfab.com/3d-models/coach-bus-89866d7d4a314f1f81b024280b1cf416 | "Coach bus" by own.guest (https://sketchfab.com/own.guest), licensed under CC BY 4.0, modified (scaled) |
 | `Truck.glb` | https://sketchfab.com/3d-models/mercedes-actros-com-semi-reboque-prancha-carrega-8ee4c1329219413e879760a25208ee15 | "Mercedes Actros com Semi Reboque Prancha Carrega" by LuizZed36 (https://sketchfab.com/LuizZed36), licensed under CC BY 4.0, modified (scaled) |
+| `Compact2.glb` (variant) | https://sketchfab.com/3d-models/ad506688595341e880d06e04a5ce2670 | "Low Poly Polo" by normal|studio (https://sketchfab.com/Urmanga), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), modified (scaled, recoloured) |
+| `Sedan2.glb` (variant) | https://sketchfab.com/3d-models/28f0bc2f0083417a8e521150529034d6 | "BMW 320i E90 Low Polly" by rifdanzz (https://sketchfab.com/rifdanzz), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), modified (scaled, recoloured) |
+| `Van2.glb` (variant) | https://sketchfab.com/3d-models/e9bc406f71dd4d888e1d598c9ad05889 | "VW Transporter Multivan Green" by LEON elenaisakova248 (https://sketchfab.com/elenaisakova248), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), modified (scaled, recoloured) |
+| `Bus2.glb` (variant) | https://sketchfab.com/3d-models/b51273fe6c19486eb71e95bc9c5c7032 | "1998 Hyundai Aero Space Coach Bus" by ImperialBlue3D (https://sketchfab.com/ImperialBlue3D), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), modified (scaled, recoloured) |
 
 Fallback picks and more detail: `docs/design/vehicle-assets.md`.
 Vehicle names and designs belong to their respective owners; this project is non-commercial and not affiliated with them.

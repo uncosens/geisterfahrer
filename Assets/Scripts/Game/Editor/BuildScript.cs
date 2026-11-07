@@ -213,6 +213,20 @@ namespace Geisterfahrer.Editor
             return null;
         }
 
+        // New or removed model files in Vehicles/ and the player prefab, put into the saved scene without a full Setup.
+        public static void RefreshModels()
+        {
+            var player = PlayerPrefab.Build();
+            var scene = UnityEditor.SceneManagement.EditorSceneManager.OpenScene(ScenePath);
+            var loop = UnityEngine.Object.FindAnyObjectByType<GameLoop>();
+            loop.art.vehicles = Road.Types.Select(t => new Models { list = ModelsFor(t.ModelKey) }).ToArray();
+            if (player) loop.art.player = player;
+            EditorUtility.SetDirty(loop);
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
+            UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene);
+            Debug.Log("MODELS " + string.Join(", ", loop.art.vehicles.Select(v => v.list.Length)));
+        }
+
         // Every file Vehicles/<key>*.glb (Compact.glb, Compact2.glb, ...): the game picks one at random per spawn.
         static GameObject[] ModelsFor(string key)
         {

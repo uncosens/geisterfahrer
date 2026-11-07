@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using Geisterfahrer.Core;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -52,6 +53,41 @@ namespace Geisterfahrer.Editor
             Shoot(cam, rt, "veh-blur", false);
             cars[0].GetComponent<Game.VehicleFx>().Scratch(1, 0.4f);
             Shoot(cam, rt, "veh-scratch", false);
+        }
+
+        // Contact sheet: every file in Vehicles/ except the player, side by side, seen from behind at an angle.
+        // Batch: Unity.exe -batchmode -quit -projectPath . -executeMethod Geisterfahrer.Editor.VehicleShots.Sheet
+        public static void Sheet()
+        {
+            EditorSceneManager.OpenScene("Assets/Scenes/Game.unity");
+            var art = Object.FindAnyObjectByType<Game.GameLoop>().art;
+            Game.Placeholder.BaseMat = art.baseLit;
+            var track = new Track(1); track.Ensure(3000, 3);
+            var view = new GameObject("Road").AddComponent<Game.TrackView>();
+            view.Init(art, track);
+            Game.VehicleFx.Init(art.spark);
+            view.Scroll(100); Game.TrackView.S = 100;
+            var files = Directory.GetFiles("Assets/ThirdParty/Vehicles", "*.glb").Where(f => !Path.GetFileName(f).StartsWith("Player")).OrderBy(f => f).ToArray();
+            var cam = new GameObject("Cam").AddComponent<Camera>();
+            cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(0.78f, 0.84f, 0.89f);
+            cam.fieldOfView = 40; cam.farClipPlane = 300;
+            var rt = new RenderTexture(1800, 900, 24); cam.targetTexture = rt;
+            int last = -1, i = 0;
+            foreach (var f in files)
+            {
+                var g = AssetDatabase.LoadAssetAtPath<GameObject>(f.Replace("\\", "/"));
+                var car = Game.Placeholder.Fit(g, 5f, Path.GetFileNameWithoutExtension(f), false, true);
+                car.GetComponent<Game.Paintable>().Paint(Game.Placeholder.RandomPaint(ref last));
+                car.transform.SetPositionAndRotation(Game.TrackView.Place(24 + (i / 4) * 9, -9 + (i % 4) * 6f), Game.TrackView.Facing(30));
+                Debug.Log($"SHEET {i} {f}");
+                i++;
+            }
+            cam.transform.position = Game.TrackView.Place(6, -3, 6); cam.transform.LookAt(Game.TrackView.Place(33, -3, 0));
+            cam.Render(); cam.Render();
+            RenderTexture.active = rt;
+            var tex = new Texture2D(rt.width, rt.height, TextureFormat.RGB24, false);
+            tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
+            File.WriteAllBytes("docs/dev/shots/veh-sheet.png", tex.EncodeToPNG());
         }
 
         static void Shoot(Camera cam, RenderTexture rt, string name, bool chase = true)
