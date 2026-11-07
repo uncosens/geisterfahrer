@@ -284,7 +284,7 @@ namespace Geisterfahrer.Tests
                 }
             }
             Assert.Greater(mound, 5, $"mound {mound} under {under}");
-            Assert.Greater(under, 2, $"mound {mound} under {under}");
+            Assert.Greater(under, 20, $"mound {mound} under {under}");
             Assert.Greater(gaps.Count, 3);
         }
 
@@ -297,7 +297,9 @@ namespace Geisterfahrer.Tests
                 if (st.kind == Section.Tunnel || st.kind == Section.Underground)
                 {
                     Assert.GreaterOrEqual(st.s1 - st.s0, st.kind == Section.Tunnel ? 300 : 900);
-                    for (double s = st.s0 - 200; s < st.s1; s += 10) Assert.AreEqual(0, t.Curvature(s), 1e-12);
+                    // The mound bore is straight with 200 m before it; the underground roof (240 m into each ramp) is straight, the open ramps may curve.
+                    double from = st.kind == Section.Tunnel ? st.s0 - 200 : st.s0 + 240, to = st.kind == Section.Tunnel ? st.s1 : st.s1 - 240;
+                    for (double s = from; s < to; s += 10) Assert.AreEqual(0, t.Curvature(s), 1e-12);
                 }
         }
 
@@ -317,7 +319,7 @@ namespace Geisterfahrer.Tests
                     Assert.AreEqual(0, t.Depth(st.s0), 1e-9);
                     Assert.AreEqual(Track.UgDepth, t.Depth((st.s0 + st.s1) / 2), 1e-9);
                     Assert.AreEqual(0, t.Depth(st.s1), 1e-9);
-                    for (double s = st.s0; s < st.s1; s += 5) Assert.Less(Math.Abs(t.Grade(s)), 0.05, $"seed {seed} s {s}");
+                    for (double s = st.s0; s < st.s1; s += 5) Assert.Less(Math.Abs(t.Grade(s)), 0.056, $"seed {seed} s {s}");
                     // Road height equals terrain height minus depth.
                     int i = (int)((st.s0 + st.s1) / 2 / Track.SampleStep);
                     double terrain = t.Y[(int)(st.s0 / Track.SampleStep)];
@@ -325,7 +327,7 @@ namespace Geisterfahrer.Tests
                     Assert.AreEqual(terrain - Track.UgDepth, t.Y[i], 0.2, $"seed {seed}");
                 }
             }
-            Assert.Greater(n, 2, $"n {n}");
+            Assert.Greater(n, 20, $"n {n}");
         }
 
         // User changes: +40 % steering, return to straight twice as slow, +40 % traffic.

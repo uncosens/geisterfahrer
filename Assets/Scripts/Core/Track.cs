@@ -177,7 +177,7 @@ namespace Geisterfahrer.Core
 
         // Tunnels sit on straights, never in the first FirstTunnel metres, with a random chance per straight and MinGap between structures.
         // Two kinds, mixed at random: an earth mound over a bore (no crest inside), or an underground box (flat terrain on top,
-        // needs a nearly level terrain on the ramps so they stay under 5 %). 200 m of straight road lead to each portal.
+        // needs terrain not steeper than 2 % against the ramp so the slope stays under 5.5 %). 200 m of straight road lead to each portal.
         public const double FirstTunnel = 1500, TunnelPerStraight = 0.5, UndergroundShare = 0.5, MinGap = 700;
 
         void AddTunnels(double upTo)
@@ -190,13 +190,7 @@ namespace Geisterfahrer.Core
                 if (b - a < 500 || Structures.Exists(x => x.s0 < b + MinGap && x.s1 > a - MinGap)) continue;
                 if (!tunnelStraights.Contains(a) && rng.NextDouble() >= TunnelPerStraight) continue;
                 bool underground = rng.NextDouble() < UndergroundShare;
-                if (underground)
-                {
-                    double len = Math.Floor(Rand(800, 1300) / 4) * 4;
-                    for (double at = Math.Ceiling(Math.Max(a + 200, FirstTunnel) / 4) * 4; at + len + 100 <= b; at += 52)
-                        if (Level(at, at + len)) { Structures.Add((at, at + len, Section.Underground)); break; }
-                    if (Structures.Exists(x => x.s0 >= a && x.s0 < b)) continue; // else fall back to a mound tunnel on this straight
-                }
+                if (underground && TryUnderground(a, b, upTo)) continue; // else a mound tunnel on this straight
                 for (double at = Math.Ceiling(Math.Max(a + 200, FirstTunnel) / 4) * 4; at + 300 <= b; at += 52)
                 {
                     double room = 0;
@@ -208,10 +202,23 @@ namespace Geisterfahrer.Core
             }
         }
 
-        // Terrain grade within 1.2 % over both ramps: the ramp slope adds up to 3.5 % on top. The middle may follow any hill.
+        // The roofed middle of an underground section (depth >= UgRoof, about 240 m into each ramp) must lie on the straight [a, b];
+        // the open ramps may run into the curves around it. Road already sampled is never changed.
+        const double RoofIn = 240;
+
+        bool TryUnderground(double a, double b, double upTo)
+        {
+            double len = Math.Floor(Rand(800, 1300) / 4) * 4, sampled = (X.Count - 1) * SampleStep;
+            for (double at = Math.Ceiling(Math.Max(a - RoofIn, Math.Max(FirstTunnel, sampled)) / 4) * 4; at + len - RoofIn <= b && at + len <= upTo; at += 52)
+                if (Level(at, at + len) && !Busy(at - MinGap, at + len + MinGap)) { Structures.Add((at, at + len, Section.Underground)); return true; }
+            return false;
+        }
+
+        // The ramps add up to 3.5 % (down at the entry, up at the exit): keep the total under 5.5 %,
+        // so the terrain must not fall faster than 2 % on the entry ramp or rise faster than 2 % on the exit ramp.
         bool Level(double a, double b)
         {
-            for (double x = a; x <= a + UgRamp; x += 50) if (Math.Abs(GradeBase(x)) > 0.012 || Math.Abs(GradeBase(b - (x - a))) > 0.012) return false;
+            for (double x = a; x <= a + UgRamp; x += 50) if (GradeBase(x) < -0.02 || GradeBase(b - (x - a)) > 0.02) return false;
             return true;
         }
 
