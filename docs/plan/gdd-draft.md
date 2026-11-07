@@ -19,8 +19,8 @@ Changes from v0.4 (user playtest, applied by the developer, `docs/decisions.md` 
 - Acceleration: power 260 → **140 kW**, new drive traction limit **μ_drive 0.60** (grip μ 0.85 stays for scrub and curve drift). 0–100 km/h **5.7 s**, 100–200 km/h **18.6 s**, flat ceiling **247 km/h** (240 km/h only after about a minute of clean driving). All speed tables in 2.2 are redone for this model.
 - Traffic density **+40 %** in every phase (2.4). Two more vehicle types and 17 paint colours (4.1).
 - Tunnels are regular but random: none in the first 1.5 km, then a 50 % chance per straight of 500 m or more, two kinds: earth-mound bore or underground cut-and-cover box (6.4, 6.5).
-- On throttle the camera sinks 0.4 m and the FOV narrows 5° (eased in 0.4 s, out 0.6 s); this combines with the speed FOV (5.1).
-- Camera and road shake only while the accelerator is held above **200 km/h**, growing to 400 km/h, at 40 % of the old amplitude (5.1).
+- The camera follows speed, not the accelerator: one smoothstep over 0–300 km/h (low-pass 0.6 s) lowers it 0.5 m, moves it 1 m closer and tilts it 3° further down; the speed FOV (80° → 92°) stays (5.1). The lower camera still sees over cars (1.45 m) and trucks keep their blind spot as before.
+- Camera and road shake only while the accelerator is held above **200 km/h**, growing to 340 km/h, at 48 % of the old amplitude (5.1). Power 165 kW (decision 54): 0–100 in 5.6 s, 0–200 in 17.9 s, 300 km/h at 54 s, flat ceiling 335 km/h..
 - Overpass and tunnel concrete mid-grey `#7A7C80`, matte; steel rails and fields toned down; sun 1.35.
 
 Changes from v0.3:
@@ -119,7 +119,7 @@ v       = max(v, 0)              no reverse, no rolling backward
 | Value | Number | Note |
 |---|---|---|
 | m | 1500 kg | 911-like |
-| P | **140 kW** at the wheels | was 260 kW; reduced after playtest so top speed is not easy |
+| P | **165 kW** at the wheels | was 260 kW, then 140, 155; 165 gives 300 km/h at 54 s (decision 54) |
 | μ | 0.85 | tyre grip: scrub and the curve grip in 6.3 |
 | μ_drive | **0.60** | traction limit of the drive force (power-limited above about 53 km/h) |
 | CdA | 0.65 m² | |
