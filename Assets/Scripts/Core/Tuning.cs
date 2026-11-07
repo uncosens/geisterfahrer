@@ -8,8 +8,9 @@ namespace Geisterfahrer.Core
     {
         // Forward force model (GDD 2.2)
         public double Mass = 1500;
-        public double Power = 260e3;
-        public double Mu = 0.85;
+        public double Power = 140e3;           // was 260 kW: 0-100 in 5.6 s was too easy (decision 32)
+        public double Mu = 0.85;               // grip: scrub and curve drift
+        public double DriveMu = 0.60;          // traction limit of the drive force (0-100 in about 6 s)
         public double CdA = 0.65;
         public double AirDensity = 1.225;
         public double Crr = 0.012;
@@ -20,10 +21,10 @@ namespace Geisterfahrer.Core
         public double Superelevation = 0.04;   // q, curve drift c = max(0, v^2/R - g q)
 
         // Side motion
-        public double MaxSideSpeed = 7;
-        public double SideSpeedPerSpeed = 0.25;
+        public double MaxSideSpeed = 9.8;       // was 7 (+40 %, decision 33)
+        public double SideSpeedPerSpeed = 0.35; // was 0.25 (+40 %)
         public double SteerTau = 0.12;
-        public double RecenterTau = 0.15;
+        public double RecenterTau = 0.30;       // was 0.15: slower return to straight
 
         // Collisions (GDD 2.5), impulse in t*m/s
         public double CrashImpulse = 6.0;
@@ -33,6 +34,7 @@ namespace Geisterfahrer.Core
         public double MaxStepMove = 0.5;
 
         // Spawning (GDD 5.3, 4.2, 4.3)
+        public double DensityScale = 1.4;      // +40 % traffic in every phase (decision 35)
         public double MinSpawnDistance = 400;
         public double SpawnWarningTime = 3.5;
         public double SameLaneGapTime = 1.5;

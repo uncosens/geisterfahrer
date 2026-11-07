@@ -64,7 +64,7 @@ namespace Geisterfahrer.Editor
                 semi = Font("Inter-SemiBold", 72, 8, "0123456789.,- kmh/"),
                 black = Font("Inter-Black", 96, 10, "GEISTERFAHR"),
                 sign = Font("BarlowSemiCondensed-SemiBold", 64, 6, "0123456789."),
-                vehicles = Road.Types.Select(t => Model(t.Name)).ToArray(),
+                vehicles = Road.Types.Select(t => new Models { list = ModelsFor(t.ModelKey) }).ToArray(),
                 player = Model("Player"),
             };
             art.boldShadow = Shadow(art.bold);
@@ -94,7 +94,7 @@ namespace Geisterfahrer.Editor
             sun.type = LightType.Directional;
             sun.transform.rotation = Quaternion.Euler(40, 30, 0);
             sun.color = new Color(1, 0.945f, 0.871f); // #FFF1DE
-            sun.intensity = 1.6f;
+            sun.intensity = 1.35f; // 1.6 in look-spec 1; too bright on the tablet (decision 33)
             sun.shadows = LightShadows.Hard; sun.shadowStrength = 0.85f; sun.shadowBias = 1; sun.shadowNormalBias = 0.6f;
             RenderSettings.sun = sun;
 
@@ -211,6 +211,15 @@ namespace Geisterfahrer.Editor
             foreach (var ext in new[] { ".glb", ".gltf", ".fbx" })
                 if (AssetDatabase.LoadAssetAtPath<GameObject>($"{TP}/Vehicles/{name}{ext}") is GameObject g) return g;
             return null;
+        }
+
+        // Every file Vehicles/<key>*.glb (Compact.glb, Compact2.glb, ...): the game picks one at random per spawn.
+        static GameObject[] ModelsFor(string key)
+        {
+            var dir = $"{TP}/Vehicles";
+            if (!Directory.Exists(dir)) return new GameObject[0];
+            return Directory.GetFiles(dir, key + "*.glb").OrderBy(f => f)
+                .Select(f => AssetDatabase.LoadAssetAtPath<GameObject>(f.Replace("\\", "/"))).Where(g => g != null).ToArray();
         }
 
         // URP mobile settings (docs/dev/unity-plan.md 1, look-spec 4).

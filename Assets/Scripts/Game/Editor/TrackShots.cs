@@ -56,7 +56,7 @@ namespace Geisterfahrer.Editor
             if (crest > 0) Shot("hill", crest);
             foreach (var st in track.Structures)
             {
-                if (st.kind == Section.Tunnel) { Shot("tunnel-portal", st.s0 - 150); Shot("tunnel-inside", st.s0 + 200); break; }
+                if (st.kind == Section.Tunnel) { Shot("tunnel-portal", st.s0 - 150); Shot("tunnel-inside", st.s0 + 150); Shot("tunnel-exit", st.s1 - 60); break; }
             }
             foreach (var st in track.Structures)
                 if (st.kind == Section.Viaduct) { Shot("viaduct", st.s0 + 100); break; }

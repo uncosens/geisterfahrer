@@ -4,7 +4,8 @@
     "references": [
         "Geisterfahrer.Core",
         "UnityEngine.TestRunner",
-        "UnityEditor.TestRunner"
+        "UnityEditor.TestRunner",
+        "Geisterfahrer.Game"
     ],
     "includePlatforms": [
         "Editor"

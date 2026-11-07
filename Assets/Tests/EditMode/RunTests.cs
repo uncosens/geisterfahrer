@@ -9,6 +9,7 @@ namespace Geisterfahrer.Tests
     public class RunTests
     {
         const double Dt = 1.0 / 60;
+        const double VAT10 = 137.0, DAT10 = 230.7; // 10 s from standstill with the 140 kW model
         const int Compact = 0, Sedan = 1, Truck = 4;
 
         static Run NewRun(double kmh, double curvature = 0, double grade = 0)
@@ -40,9 +41,12 @@ namespace Geisterfahrer.Tests
             r.X = Road.LaneX(0) + t.Width / 2 + ex + 0.01;
             r.Vehicles.Add(new Vehicle { Type = type, Lane = 0, Z = 0, Speed = 85 / 3.6 });
             speedBefore = r.V;
-            StepUntilHit(r, -sideSpeed / 7);
+            StepUntilHit(r, Steer(r, -sideSpeed));
             return r;
         }
+
+        // Steering input that holds a given side speed at the car's current speed.
+        static double Steer(Run r, double side) => side / Math.Min(r.T.MaxSideSpeed, r.T.SideSpeedPerSpeed * r.V);
 
         static Run RailHit(double playerKmh, double sideSpeed, out double speedBefore)
         {
@@ -51,7 +55,7 @@ namespace Geisterfahrer.Tests
             r.Yaw = Math.Atan2(r.Side, r.V);
             r.X = -Road.RailX + Contacts.RailDepth(-Road.RailX, r.Yaw, Road.PlayerLength / 2, Road.PlayerWidth / 2, -1) + 0.01;
             speedBefore = r.V;
-            StepUntilHit(r, -sideSpeed / 7);
+            StepUntilHit(r, Steer(r, -sideSpeed));
             return r;
         }
 
@@ -102,7 +106,7 @@ namespace Geisterfahrer.Tests
             for (int i = 0; i < 60; i++) r.Step(Dt, -0.4, false); // keep pressing into the rail for 1 s
             Assert.IsFalse(r.Crashed);
             Assert.AreEqual(1, r.Hits);
-            Assert.Less(Math.Abs(r.Yaw), Math.Atan(0.26));
+            Assert.Less(Math.Abs(r.Yaw), Math.Atan(0.36));
             Assert.Greater(r.V * 3.6, 4); // 60 - 36 - 15 - coasting ≈ 7
         }
 
@@ -131,7 +135,7 @@ namespace Geisterfahrer.Tests
         {
             var r = NewRun(100);
             for (int i = 0; i < 60; i++) r.Step(Dt, 1, true);
-            Assert.AreEqual(7, r.Side, 0.05);
+            Assert.AreEqual(9.72, r.Side, 0.1); // min(9.8, 0.35 x 27.8 m/s)
             Assert.AreEqual(Math.Atan2(r.Side, r.V), r.Yaw, 1e-9);
         }
 
@@ -141,7 +145,9 @@ namespace Geisterfahrer.Tests
             var r = NewRun(230);
             Assert.AreEqual(400, r.SpawnDistance, 1);
             r.V = r.TopSpeed;
-            Assert.AreEqual(470, r.SpawnDistance, 5);
+            Assert.AreEqual((r.TopSpeed + 50) * 3.5, r.SpawnDistance, 1); // closing speed x 3.5 s, once it passes 400 m
+            r.V = 300 / 3.6;
+            Assert.AreEqual((300 / 3.6 + 50) * 3.5, r.SpawnDistance, 1); // downhill: 465 m
         }
 
         [Test]
@@ -209,8 +215,8 @@ namespace Geisterfahrer.Tests
             r.Spawning = false; // only the speed curve from here
             for (int i = 0; i < 60 * 10; i++) r.Step(Dt, 0, true);
             Assert.IsTrue(r.Started);
-            Assert.AreEqual(186, r.V * 3.6, 2);       // GDD 2.2: 10 s from standstill
-            Assert.AreEqual(318, r.Distance, 6);
+            Assert.AreEqual(VAT10, r.V * 3.6, 2);       // GDD 2.2: 10 s from standstill
+            Assert.AreEqual(DAT10, r.Distance, 6);
         }
 
         // Curve drift (GDD 6.3, 2.5): full steering against a curve to the right, drifting into the outer (left) rail.
@@ -228,7 +234,7 @@ namespace Geisterfahrer.Tests
         {
             var r = CurveRail(720, out _);
             Assert.IsFalse(r.Crashed);
-            Assert.AreEqual(1.6, r.LastImpulse, 0.15);
+            Assert.AreEqual(2.3, r.LastImpulse, 0.25);
         }
 
         [Test]
@@ -236,7 +242,7 @@ namespace Geisterfahrer.Tests
         {
             var r = CurveRail(470, out _);
             Assert.IsTrue(r.Crashed);
-            Assert.AreEqual(8.4, r.LastImpulse, 0.3);
+            Assert.AreEqual(11.7, r.LastImpulse, 0.5);
         }
 
         [Test]
@@ -255,6 +261,78 @@ namespace Geisterfahrer.Tests
             double x0 = r.X;
             for (int i = 0; i < 30; i++) r.Step(Dt, 0, true);
             Assert.Less(r.X, x0); // curve to the right pushes the car left
+        }
+
+        // Tunnels from the first minute (about 4 km): the road is generated ahead in phase 1, so this checks the generator itself.
+        [Test]
+        public void TunnelWithinTheFirstFourKm()
+        {
+            for (int seed = 1; seed <= 30; seed++)
+            {
+                var t = new Track(seed);
+                for (double s = 0; s <= 1500; s += 100) t.Ensure(s, 0); // road to 4 km, all generated in phase 1
+                Assert.IsTrue(t.Structures.Exists(x => x.kind == Section.Tunnel && x.s0 < 4000), $"seed {seed}");
+            }
+        }
+
+        [Test]
+        public void TunnelsAreStraightAndLong()
+        {
+            var t = new Track(5);
+            t.Ensure(20000, 3);
+            foreach (var st in t.Structures)
+                if (st.kind == Section.Tunnel)
+                {
+                    Assert.GreaterOrEqual(st.s1 - st.s0, 300);
+                    for (double s = st.s0 - 200; s < st.s1; s += 10) Assert.AreEqual(0, t.Curvature(s), 1e-12);
+                }
+        }
+
+        // User changes: +40 % steering, return to straight twice as slow, +40 % traffic.
+        [Test]
+        public void SteeringIsFortyPercentStronger()
+        {
+            var t = new Tuning();
+            Assert.AreEqual(7 * 1.4, t.MaxSideSpeed, 0.01);
+            Assert.AreEqual(0.25 * 1.4, t.SideSpeedPerSpeed, 0.001);
+            Assert.AreEqual(0.30, t.RecenterTau, 1e-9);
+        }
+
+        [Test]
+        public void SideSpeedReturnsSlowlyWhenTheFingerLifts()
+        {
+            var r = NewRun(150);
+            for (int i = 0; i < 15; i++) r.Step(Dt, 1, true); // 0.25 s of steering, short enough to stay clear of the rail
+            double full = r.Side;
+            for (int i = 0; i < 18; i++) r.Step(Dt, 0, true); // 0.3 s = one new time constant: about 37 % left
+            Assert.IsFalse(r.Scraping);
+            Assert.AreEqual(full * Math.Exp(-1), r.Side, full * 0.06);
+        }
+
+        [Test]
+        public void DeadZoneInputIsZeroSteering()
+        {
+            var r = NewRun(100);
+            for (int i = 0; i < 60; i++) r.Step(Dt, 0, true);
+            Assert.AreEqual(0, r.Side, 1e-9);
+        }
+
+        [Test]
+        public void TrafficDensityIsFortyPercentHigher()
+        {
+            Assert.AreEqual(1.4, new Tuning().DensityScale, 1e-9);
+            // Realised traffic: vehicles per km over 2 min of steady driving at 150 km/h, phase 2-3.
+            var r = new Run(new Tuning { CrashImpulse = double.MaxValue }, 4, Track.Constant(0, 0)) { Started = true };
+            int spawned = 0;
+            for (int i = 0; i < 60 * 120; i++)
+            {
+                int before = r.Vehicles.Count;
+                r.V = 150 / 3.6; r.X = -Road.RailX + 2;
+                r.Step(Dt, 0, false);
+                spawned += Math.Max(0, r.Vehicles.Count - before);
+            }
+            double perKm = spawned / (r.Distance / 1000);
+            Assert.Greater(perKm, 14); // nominal 11 to 28 per km over those phases, times 1.4 minus rejected spawns
         }
     }
 }

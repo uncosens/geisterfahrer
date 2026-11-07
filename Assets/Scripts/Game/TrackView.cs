@@ -29,18 +29,20 @@ namespace Geisterfahrer.Game
             mats = new Material[(int)M.Count];
             mats[(int)M.Asphalt] = Placeholder.CalmAsphalt(2 * (Rail + 0.1f), 2.08f); // matches the road Strip below
             mats[(int)M.Paint] = Placeholder.Mat(Placeholder.Hex(0xE9E9E4), 0, 0.35f);
-            mats[(int)M.Steel] = Placeholder.Mat(Placeholder.Hex(0xA9AFB5), 0.85f, 0.55f);
+            mats[(int)M.Steel] = Placeholder.Mat(Placeholder.Hex(0x959BA1), 0.5f, 0.3f); // matte steel: bright metal mirrored the sky
             mats[(int)M.Grass] = art.grass ? art.grass : Placeholder.Mat(Placeholder.Hex(0x6F8A3E), 0, 0.1f);
             mats[(int)M.White] = Placeholder.Mat(Placeholder.Hex(0xF2F2F0), 0, 0.3f);
             mats[(int)M.Black] = Placeholder.Mat(Placeholder.Hex(0x1A1A1A), 0, 0.3f);
-            mats[(int)M.Concrete] = Placeholder.Mat(Placeholder.Hex(0xB4B4AE), 0, 0.2f);
+            mats[(int)M.Concrete] = Placeholder.Mat(Placeholder.Hex(0x7A7C80), 0, 0.05f); // mid-grey matte concrete (overpass, tunnel, viaduct)
             mats[(int)M.SignBack] = Placeholder.Mat(Placeholder.Hex(0x8B9097), 0.3f, 0.4f);
             mats[(int)M.Lamp] = Placeholder.Mat(Placeholder.Hex(0xFFF6E0), 0, 0.9f);
             int[] fields = { 0x6F8A3E, 0xC8B46A, 0x8A7556, 0x7E9A4A };
-            for (int i = 0; i < 4; i++) mats[(int)M.Field0 + i] = Placeholder.Mat(Placeholder.Hex(fields[i]), 0, 0.1f);
+            for (int i = 0; i < 4; i++) mats[(int)M.Field0 + i] = Placeholder.Mat(Dim(Placeholder.Hex(fields[i]), 0.85f), 0, 0.05f);
             foreach (var c in chunks.Values) Destroy(c);
             chunks.Clear();
         }
+
+        static Color Dim(Color c, float k) => new Color(c.r * k, c.g * k, c.b * k, 1);
 
         // ---- road space to world ----
 

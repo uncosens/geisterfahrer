@@ -10,7 +10,7 @@ namespace Geisterfahrer.Core
         // steer: applied steering input -1..1 (tyre scrub grows with its square); grade: rise/run, + uphill.
         public static double Accel(Tuning t, double v, bool throttle, double steer = 0, double grade = 0)
         {
-            double drive = throttle ? Math.Min(t.Power / Math.Max(v, 0.1), t.Mu * t.Mass * G) : 0;
+            double drive = throttle ? Math.Min(t.Power / Math.Max(v, 0.1), t.DriveMu * t.Mass * G) : 0;
             double drag = 0.5 * t.AirDensity * t.CdA * v * v;
             double roll = v > 0 ? t.Crr * t.Mass * G : 0;
             double brake = !throttle && v > 0 ? t.EngineBrake : 0;

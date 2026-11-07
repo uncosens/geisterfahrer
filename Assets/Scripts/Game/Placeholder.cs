@@ -60,19 +60,38 @@ namespace Geisterfahrer.Game
         static Material GlassMat => Mat(Hex(0x1A1F26), 0, 0.95f);
         static Material Tyre => Mat(Hex(0x1B1B1B), 0, 0.25f);
         static Material HeadLight => Mat(Hex(0xFFF6E0), 0, 0.9f);
-        public static Material PlayerPaint => Mat(Hex(0xB5121B), 0.7f, 0.82f); // red 911 (user choice); darker than the danger red #FF4D4F
+        public static readonly PaintColor PlayerRed = new PaintColor(0xC8102E, 0.55f, 0.85f); // red 911 (user choice, decision 9)
         public static Material Trailer => Mat(Hex(0xEDEDEB), 0, 0.4f);
 
-        // Traffic paint: white 30, silver 25, graphite 15, black 15, beige 10, yellow 5 (vans only).
-        public static Material TrafficPaint(bool van)
+        public readonly struct PaintColor
         {
-            float r = Random.value * (van ? 100 : 95);
-            return r < 30 ? Mat(Hex(0xE9E9E7), 0.1f, 0.75f)
-                : r < 55 ? Mat(Hex(0xB9BDC2), 0.8f, 0.7f)
-                : r < 70 ? Mat(Hex(0x3A3D42), 0.6f, 0.78f)
-                : r < 85 ? Mat(Hex(0x1C1D20), 0.4f, 0.85f)
-                : r < 95 ? Mat(Hex(0xC8B79A), 0.2f, 0.7f)
-                : Mat(Hex(0xE3B53A), 0.1f, 0.7f);
+            public readonly Color Color;
+            public readonly float Metallic, Smoothness, Weight;
+            public PaintColor(int rgb, float metallic, float smoothness, float weight = 1)
+            { Color = Hex(rgb); Metallic = metallic; Smoothness = smoothness; Weight = weight; }
+        }
+
+        // Traffic paint, weights in percent. No red or orange (red is the player's car); decision 34.
+        static readonly PaintColor[] Palette =
+        {
+            new PaintColor(0xE9E9E7, 0.1f, 0.75f, 18), new PaintColor(0xB9BDC2, 0.8f, 0.7f, 14), new PaintColor(0x3A3D42, 0.6f, 0.78f, 10),
+            new PaintColor(0x1C1D20, 0.4f, 0.85f, 10), new PaintColor(0xC8B79A, 0.2f, 0.7f, 5), new PaintColor(0x24324A, 0.5f, 0.8f, 6),
+            new PaintColor(0x3E5F8A, 0.5f, 0.8f, 4), new PaintColor(0x8FB0D0, 0.4f, 0.8f, 3), new PaintColor(0x2F6B6A, 0.4f, 0.8f, 4),
+            new PaintColor(0x2F4A38, 0.4f, 0.8f, 4), new PaintColor(0x6B7048, 0.2f, 0.7f, 3), new PaintColor(0xC9A961, 0.5f, 0.75f, 3),
+            new PaintColor(0xE3B53A, 0.1f, 0.7f, 3), new PaintColor(0x5A4636, 0.3f, 0.75f, 3), new PaintColor(0x4B3F5E, 0.4f, 0.8f, 2),
+            new PaintColor(0xF0E6C8, 0.1f, 0.7f, 3), new PaintColor(0xA8C3A9, 0.2f, 0.7f, 2),
+        };
+
+        // Weighted random colour that differs from the last one handed out for this key.
+        public static PaintColor RandomPaint(ref int last)
+        {
+            for (int tries = 0; ; tries++)
+            {
+                float sum = 0; foreach (var p in Palette) sum += p.Weight;
+                float r = Random.value * sum; int i = 0;
+                while (i < Palette.Length - 1 && (r -= Palette[i].Weight) >= 0) i++;
+                if (i != last || tries > 4) { last = i; return Palette[i]; }
+            }
         }
 
         public static GameObject Box(Transform parent, Vector3 pos, Vector3 size, Color c, PrimitiveType type = PrimitiveType.Cube)
@@ -126,22 +145,36 @@ namespace Geisterfahrer.Game
 
         // Wraps a downloaded model so it follows the prefab rules: long axis on z, scaled to the real length,
         // footprint centred on the root, wheels on y = 0.
-        // ponytail: front vs back can't be told from bounds; if a model drives backwards, rotate it 180 in its file.
-        // paint replaces materials named "...paint..." (our red 911, traffic colours); "...glass..." becomes our glass.
-        // flip turns a model that was built facing -z.
-        public static GameObject Fit(GameObject prefab, float length, string name, Material paint, bool flip)
+        // ponytail: front vs back can't be told from bounds; models built facing -z are listed in GameLoop.Flipped.
+        // Materials named "...paint..." get their own instance (Paintable) and "...glass..." becomes our glass. Without a paint
+        // material and with tintBody, bright body-like materials are cloned and tinted instead (the model's body colour is baked in).
+        public static GameObject Fit(GameObject prefab, float length, string name, bool flip, bool tintBody)
         {
             var root = new GameObject(name).transform;
             var model = Object.Instantiate(prefab, root).transform;
             model.name = "Model";
-            foreach (var r in model.GetComponentsInChildren<Renderer>())
+            var paintable = root.gameObject.AddComponent<Paintable>();
+            var renderers = model.GetComponentsInChildren<Renderer>();
+            bool hasPaint = false, hasBrightPlain = false;
+            foreach (var r in renderers)
+                foreach (var m in r.sharedMaterials)
+                {
+                    if (!m) continue;
+                    string n = m.name.ToLowerInvariant();
+                    hasPaint |= n.Contains("paint");
+                    hasBrightPlain |= !Textured(m) && BodyLike(m);
+                }
+            foreach (var r in renderers)
             {
                 var ms = r.sharedMaterials;
                 for (int i = 0; i < ms.Length; i++)
                 {
-                    string n = ms[i] ? ms[i].name.ToLowerInvariant() : "";
-                    if (n.Contains("paint")) ms[i] = paint;
+                    if (!ms[i]) continue;
+                    string n = ms[i].name.ToLowerInvariant();
+                    if (n.Contains("paint")) ms[i] = Fresh(new Material(BaseMat), paintable);
                     else if (n.Contains("glass")) ms[i] = GlassMat;
+                    else if (tintBody && !hasPaint && (Textured(ms[i]) ? !hasBrightPlain : BodyLike(ms[i])) && !n.Contains("tyre") && !n.Contains("wheel"))
+                        ms[i] = Fresh(new Material(ms[i]), paintable);
                 }
                 r.sharedMaterials = ms;
             }
@@ -152,6 +185,25 @@ namespace Geisterfahrer.Game
             b = Bounds(model);
             model.localPosition -= new Vector3(b.center.x, b.min.y, b.center.z);
             return root.gameObject;
+        }
+
+        static bool Textured(Material m) => m.HasProperty("_BaseMap") && m.GetTexture("_BaseMap") != null;
+
+        static Material Fresh(Material m, Paintable p) { p.Add(m); return m; }
+
+        static bool BodyLike(Material m)
+        {
+            var c = m.color;
+            return Mathf.Min(c.r, c.g, c.b) > 0.55f;
+        }
+
+        // Primitive stand-in whose body colour can be changed like a model's.
+        public static GameObject PaintableVehicle(string name, float l, float w, float h, Material rear = null)
+        {
+            var body = new Material(BaseMat);
+            var go = Vehicle(name, l, w, h, body, rear);
+            go.AddComponent<Paintable>().Add(body);
+            return go;
         }
 
         static Bounds Bounds(Transform t)

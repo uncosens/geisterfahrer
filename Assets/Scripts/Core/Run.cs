@@ -144,7 +144,7 @@ namespace Geisterfahrer.Core
             if (!Spawning || Time < nextSpawnTime) return;
             // Vehicles met per second = density * closing speed; spawn on average at that rate.
             double z = SpawnDistance;
-            double density = Density(Time) * (Track.KindAt(Distance + z) == Section.Tunnel ? T.TunnelDensity : 1);
+            double density = Density(Time) * T.DensityScale * (Track.KindAt(Distance + z) == Section.Tunnel ? T.TunnelDensity : 1);
             double rate = density / 1000 * (V + 30);
             nextSpawnTime = Time + (0.5 + rng.NextDouble()) / rate;
             TrySpawn();

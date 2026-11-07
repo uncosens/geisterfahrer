@@ -33,6 +33,7 @@ namespace Geisterfahrer.Game
         readonly Dictionary<Vehicle, GameObject> views = new Dictionary<Vehicle, GameObject>();
         readonly List<Vehicle> gone = new List<Vehicle>();
         readonly List<GameObject>[] pools = new List<GameObject>[Road.Types.Length];
+        readonly int[] lastPaint = new int[Road.Types.Length];
         float camX, camVel, dyingTime;
         // Driving feel (look-spec 11): smoothed camera and body values.
         float fovH = 80, kick, camBack = 6.5f, camYaw, camRoll, lastV, pitch, pitchVel, bodyRoll, bodyRollVel, rumbleTime;
@@ -74,9 +75,12 @@ namespace Geisterfahrer.Game
 
             road = new GameObject("Road").AddComponent<TrackView>();
             float pl = (float)Road.PlayerLength;
-            player = (art.player ? Placeholder.Fit(art.player, pl, "Player", Placeholder.PlayerPaint, Flipped.Contains("Player"))
-                : Placeholder.Vehicle("Player", pl, (float)Road.PlayerWidth, 1.3f, Placeholder.PlayerPaint)).transform;
+            var playerGo = art.player ? Placeholder.Fit(art.player, pl, "Player", Flipped.Contains("Player"), false)
+                : Placeholder.PaintableVehicle("Player", pl, (float)Road.PlayerWidth, 1.3f);
+            playerGo.GetComponent<Paintable>().Paint(Placeholder.PlayerRed); // every paint material of the model becomes the red 911
+            player = playerGo.transform;
             for (int i = 0; i < pools.Length; i++) pools[i] = new List<GameObject>();
+            Prewarm();
 
             hud = new Hud(art.bold, art.semi, art.black, art.boldShadow, art.semiShadow)
             {
@@ -124,6 +128,7 @@ namespace Geisterfahrer.Game
 
         void Go(State s)
         {
+            if (s == State.Playing) input.IgnoreCurrent(); // the thumb that tapped Play, Retry or Resume must not start the run
             state = s;
             hud.Show(s == State.Start ? Hud.Screen.Start : s == State.Paused ? Hud.Screen.Pause : s == State.Over ? Hud.Screen.Over : Hud.Screen.Hud);
             hud.SetBest(PlayerPrefs.GetFloat("bestSpeed", 0), PlayerPrefs.GetFloat("bestDist", 0));
@@ -173,7 +178,7 @@ namespace Geisterfahrer.Game
             perfFrames++;
             perfWorst = Mathf.Max(perfWorst, Time.unscaledDeltaTime);
             if ((perfTime += Time.unscaledDeltaTime) < 5) return;
-            Debug.Log($"PERF fps {perfFrames / perfTime:F1} worst {perfWorst * 1000:F1} ms vehicles {run.Vehicles.Count} kmh {run.V * 3.6:F0} mem {UnityEngine.Profiling.Profiler.GetTotalAllocatedMemoryLong() >> 20} MB");
+            Debug.Log($"PERF fps {perfFrames / perfTime:F1} worst {perfWorst * 1000:F1} ms vehicles {run.Vehicles.Count} kmh {run.V * 3.6:F0} shake {shakeGain:F1} gas {(input.Gas ? 1 : 0)} section {run.Track.KindAt(run.Distance)} mem {UnityEngine.Profiling.Profiler.GetTotalAllocatedMemoryLong() >> 20} MB");
             perfTime = perfWorst = 0; perfFrames = 0;
         }
 
@@ -224,7 +229,7 @@ namespace Geisterfahrer.Game
             RenderSettings.fogEndDistance = 1600;
             cam.farClipPlane = 1650;
 
-            float dt = Time.unscaledDeltaTime, sp01 = (float)(run.V / run.TopSpeed), kmh = (float)run.V * 3.6f;
+            float dt = Time.unscaledDeltaTime, sp01 = Mathf.Clamp01((float)(run.V / run.TopSpeed)), kmh = (float)run.V * 3.6f;
             float accel = Time.deltaTime > 0 ? ((float)run.V - lastV) / Time.deltaTime : 0;
             lastV = (float)run.V;
 
@@ -259,11 +264,14 @@ namespace Geisterfahrer.Game
             camYaw = Mathf.Lerp(camYaw, (float)(run.Yaw * Mathf.Rad2Deg), dt * 8);
             camRoll = Mathf.Lerp(camRoll, Mathf.Clamp(-0.25f * (float)run.Side, -1.8f, 1.8f), dt / 0.2f);
             fx.ShakeOffset(out var sp, out var sr);
-            // Speed shake from 60 km/h, scaled by surface; edge-line rumble at 30 Hz.
+            // Shake and road vibration only while accelerating at high speed: throttle held and above 150 km/h (decision 36).
+            // Never at low or steady speed, or when coasting. Eased in and out over 0.3 s; scaled by speed and surface.
+            bool shaking = state == State.Playing && input.Gas && kmh > ShakeFromKmh;
+            shakeGain = Mathf.MoveTowards(shakeGain, shaking ? 1 : 0, dt / 0.3f);
             float surf = section == Section.Tunnel ? 0.8f : section == Section.Viaduct ? 1.2f : 1;
-            float q = kmh < 60 ? 0 : (kmh / 100) * (kmh / 100) * surf;
+            float q = shakeGain * Mathf.Clamp01((kmh - ShakeFromKmh) / 100 + 0.3f) * (kmh / 100) * (kmh / 100) * surf;
             float f = (onEdgeLine ? 30 : 12 + kmh / 10) * Time.unscaledTime;
-            float amp = Mathf.Min(0.03f, 0.004f * q) + (onEdgeLine ? 0.006f : 0), rot = Mathf.Min(0.35f, 0.05f * q);
+            float amp = Mathf.Min(0.03f, 0.004f * q) + (onEdgeLine ? 0.006f * shakeGain : 0), rot = Mathf.Min(0.35f, 0.05f * q);
             sp += new Vector3(Mathf.PerlinNoise(f, 11) - 0.5f, Mathf.PerlinNoise(f, 12) - 0.5f, 0) * 2 * amp;
             sr += new Vector2(Mathf.PerlinNoise(f, 13) - 0.5f, Mathf.PerlinNoise(f, 14) - 0.5f) * 2 * rot;
             cam.transform.position = TrackView.Place(-camBack, camX, 2.7f) + sp;
@@ -296,7 +304,7 @@ namespace Geisterfahrer.Game
             echo.enabled = inTunnel;
 
             // Haptic rumble on the edge line: 10 ms every 60 ms.
-            if (onEdgeLine && state == State.Playing && (rumbleTime -= dt) <= 0) { rumbleTime = 0.06f; Feedback.Vibrate(10, 120); }
+            if (onEdgeLine && shaking && (rumbleTime -= dt) <= 0) { rumbleTime = 0.06f; Feedback.Vibrate(10, 120); }
 
             bool moving = state == State.Playing;
             // Engine with sound-only gears: rpm 2500-7500 inside each gear (look-spec 11.4).
@@ -320,6 +328,8 @@ namespace Geisterfahrer.Game
 
         // Downloaded models that were built facing backwards (checked on screen).
         static readonly HashSet<string> Flipped = new HashSet<string> { "Player" };
+        const float ShakeFromKmh = 150;
+        float shakeGain;
 
         static readonly float[] Shifts = { 0, 70, 110, 150, 195, 240, 285, 400 }; // sound-only gear tops, km/h
 
@@ -353,6 +363,18 @@ namespace Geisterfahrer.Game
             return ps;
         }
 
+        // Build a few vehicles of each type behind the start screen: the first spawn of a model cost half a second on the tablet.
+        void Prewarm()
+        {
+            var made = new List<GameObject>();
+            for (int type = 0; type < pools.Length; type++)
+            {
+                made.Clear();
+                for (int i = 0; i < 3; i++) made.Add(Take(type));
+                foreach (var g in made) { g.SetActive(false); pools[type].Add(g); }
+            }
+        }
+
         GameObject Take(int type)
         {
             var pool = pools[type];
@@ -361,14 +383,16 @@ namespace Geisterfahrer.Game
                 var g = pool[pool.Count - 1];
                 pool.RemoveAt(pool.Count - 1);
                 g.SetActive(true);
+                g.GetComponent<Paintable>().Paint(Placeholder.RandomPaint(ref lastPaint[type])); // new colour on reuse
                 return g;
             }
             var t = Road.Types[type];
-            var model = type < art.vehicles.Length ? art.vehicles[type] : null;
-            var go = model ? Placeholder.Fit(model, (float)t.Length, t.Name, Placeholder.TrafficPaint(t.Name == "Van"), Flipped.Contains(t.Name))
-                : Placeholder.Vehicle(t.Name, (float)t.Length, (float)t.Width, (float)t.Height,
-                    t.Name == "Bus" ? Placeholder.Mat(Placeholder.Hex(0xE9E9E7), 0.1f, 0.75f) : Placeholder.TrafficPaint(t.Name == "Van"),
-                    t.Name == "Truck" ? Placeholder.Trailer : null);
+            var models = type < art.vehicles.Length ? art.vehicles[type].list : null;
+            // One of the downloaded models for this type (several files = variety); buses and trucks keep their own livery.
+            var go = models != null && models.Length > 0
+                ? Placeholder.Fit(models[Random.Range(0, models.Length)], (float)t.Length, t.Name, Flipped.Contains(t.ModelKey), t.Name != "Bus" && t.Name != "Truck")
+                : Placeholder.PaintableVehicle(t.Name, (float)t.Length, (float)t.Width, (float)t.Height, t.Name == "Truck" ? Placeholder.Trailer : null);
+            go.GetComponent<Paintable>().Paint(Placeholder.RandomPaint(ref lastPaint[type]));
             return go;
         }
 

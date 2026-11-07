@@ -58,7 +58,10 @@ namespace Geisterfahrer.Core
         static readonly double[,] Radius = { { 2000, 5000 }, { 1200, 3000 }, { 720, 2000 }, { 720, 1500 } };
         static readonly double[] SCurve = { 0, 0, 0.2, 0.35 };
         static readonly double[] MaxGrade = { 0.01, 0.025, 0.04, 0.04 };
-        static readonly double[] ViaductPerKm = { 0, 0.2, 0.2, 0.25 }, TunnelPerKm = { 0, 0, 1 / 6.0, 0.2 };
+        static readonly double[] ViaductPerKm = { 0, 0.2, 0.2, 0.25 }, TunnelPerKm = { 0.35, 0.35, 0.35, 0.35 };
+
+        double geomSinceTunnel;
+        readonly HashSet<double> tunnelStraights = new HashSet<double>();
 
         double Rand(double a, double b) => a + rng.NextDouble() * (b - a);
 
@@ -66,7 +69,11 @@ namespace Geisterfahrer.Core
         {
             double s = hs[hs.Count - 1];
             bool first = s == 0;
-            double straight = first ? Rand(800, 2000) : Rand(StraightLen[phase, 0], StraightLen[phase, 1]);
+            double straight = first ? Rand(1500, 2500) : Rand(StraightLen[phase, 0], StraightLen[phase, 1]); // long first straight: flat start and the first tunnel (decision 27)
+            // Tunnel host: after 3 km of road without one, the next straight is made at least 1000 m long and gets a tunnel.
+            bool host = first || geomSinceTunnel > 3000;
+            if (host && straight < 1000) straight = Rand(1000, 1500);
+            if (host) { tunnelStraights.Add(s); geomSinceTunnel = 0; } else geomSinceTunnel += straight;
             Knot(hs, hk, s + straight, 0);
             int side = rng.Next(2) * 2 - 1;
             do
@@ -80,6 +87,7 @@ namespace Geisterfahrer.Core
                 Knot(hs, hk, s0 + 2 * l + arc, 0);
                 side = -side;
             } while (rng.NextDouble() < SCurve[phase]);
+            geomSinceTunnel += hs[hs.Count - 1] - (s + straight);
         }
 
         // ---- vertical: constant grades joined by vertical curves (6.4) ----
@@ -107,43 +115,66 @@ namespace Geisterfahrer.Core
             return Math.Max(m, Math.Abs(Curvature(b)));
         }
 
-        // ponytail: GDD wants a constant grade in tunnels; a change under 1 % is allowed, or tunnels almost never fit.
-        bool ConstantGrade(double a, double b)
+        // A tunnel may climb or sag but must not have a crest inside (5.4): the grade never falls along it.
+        // (GDD says constant grade; with +-4 % hills that almost never fits, decision 37.)
+        bool NoCrest(double a, double b)
         {
-            double lo = Math.Min(Grade(a), Grade(b)), hi = Math.Max(Grade(a), Grade(b));
-            for (int i = 0; i < vs.Count; i++) if (vs[i] > a && vs[i] < b) { lo = Math.Min(lo, vg[i]); hi = Math.Max(hi, vg[i]); }
-            return hi - lo <= 0.01;
+            double g = Grade(a);
+            for (double x = a + 50; x <= b; x += 50)
+            {
+                double next = Grade(x);
+                if (next < g - 0.001) return false;
+                g = Math.Max(g, next);
+            }
+            return true;
         }
 
-        // ---- structures: one roll per km of new road (6.5) ----
+        // ---- structures (6.4, 6.5) ----
+
+        double tunnelScan;
 
         void AddStructures(double upTo, int phase)
         {
+            AddTunnels(upTo);
+            // Viaducts: one roll per km of new road.
             for (double km = Math.Max(structuresDone, 1000); km + 1000 <= upTo; km += 1000)
             {
                 structuresDone = km + 1000;
-                if (Busy(km - 300, km + 1000)) continue;
                 double len = Rand(300, 1500);
-                if (rng.NextDouble() < TunnelPerKm[phase])
-                {
-                    // First spot in this km with a straight, near-constant-grade stretch of at least 300 m
-                    // (200 m straight before the portal), as long as it lasts, up to 1500 m.
-                    for (double at = km; at < km + 1000; at += 50)
-                    {
-                        double room = 0;
-                        while (room < 1500 && MaxCurvature(at - 200, at + room + 100) == 0 && ConstantGrade(at, at + room + 100)) room += 100;
-                        if (room < 300) continue;
-                        Structures.Add((at, at + Rand(300, room), Section.Tunnel));
-                        break;
-                    }
-                }
-                else if (rng.NextDouble() < ViaductPerKm[phase] && MaxCurvature(km, km + len) <= 1 / 720.0)
+                if (!Busy(km - 300, km + len + 300) && rng.NextDouble() < ViaductPerKm[phase] && MaxCurvature(km, km + len) <= 1 / 720.0)
                     Structures.Add((km, km + len, Section.Viaduct));
             }
             while (nextOverpass < upTo)
             {
                 if (KindAt(nextOverpass) == Section.Open) Overpasses.Add(nextOverpass);
                 nextOverpass += Rand(1000, 2000);
+            }
+        }
+
+        // Tunnels sit on straights: every straight of at least 500 m (after the first 500 m of the run) gets one with chance TunnelPerStraight,
+        // and the first straight that qualifies always does, so the first tunnel comes within the first minute.
+        // The portal has 200 m of straight road before it and the grade must not fall inside it (no crest).
+        // The old per-km roll in the phase at generation time never fired in the first minute: the road is built 2.5 km ahead.
+        const double TunnelPerStraight = 0.9;
+
+        void AddTunnels(double upTo)
+        {
+            for (int i = 0; i + 1 < hs.Count; i++)
+            {
+                double a = hs[i], b = hs[i + 1];
+                if (hk[i] != 0 || hk[i + 1] != 0 || b > upTo || a < tunnelScan) continue;
+                tunnelScan = b;
+                if (b - a < 500 || Structures.Exists(x => x.s0 < b && x.s1 > a - 300)) continue;
+                bool must = tunnelStraights.Contains(a) || !Structures.Exists(x => x.kind == Section.Tunnel);
+                if (!must && rng.NextDouble() >= TunnelPerStraight) continue;
+                for (double at = Math.Max(a + 200, 500); at + 300 <= b; at += 50)
+                {
+                    double room = 0;
+                    while (room < 1500 && at + room + 100 <= b && NoCrest(at, at + room + 100)) room += 100;
+                    if (room < 300) continue;
+                    Structures.Add((at, at + Rand(300, room), Section.Tunnel));
+                    break;
+                }
             }
         }
 
