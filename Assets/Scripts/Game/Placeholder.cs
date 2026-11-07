@@ -127,13 +127,27 @@ namespace Geisterfahrer.Game
         // Wraps a downloaded model so it follows the prefab rules: long axis on z, scaled to the real length,
         // footprint centred on the root, wheels on y = 0.
         // ponytail: front vs back can't be told from bounds; if a model drives backwards, rotate it 180 in its file.
-        public static GameObject Fit(GameObject prefab, float length, string name)
+        // paint replaces materials named "...paint..." (our red 911, traffic colours); "...glass..." becomes our glass.
+        // flip turns a model that was built facing -z.
+        public static GameObject Fit(GameObject prefab, float length, string name, Material paint, bool flip)
         {
             var root = new GameObject(name).transform;
             var model = Object.Instantiate(prefab, root).transform;
             model.name = "Model";
+            foreach (var r in model.GetComponentsInChildren<Renderer>())
+            {
+                var ms = r.sharedMaterials;
+                for (int i = 0; i < ms.Length; i++)
+                {
+                    string n = ms[i] ? ms[i].name.ToLowerInvariant() : "";
+                    if (n.Contains("paint")) ms[i] = paint;
+                    else if (n.Contains("glass")) ms[i] = GlassMat;
+                }
+                r.sharedMaterials = ms;
+            }
             var b = Bounds(model);
             if (b.size.x > b.size.z) { model.localRotation = Quaternion.Euler(0, 90, 0) * model.localRotation; b = Bounds(model); }
+            if (flip) model.localRotation = Quaternion.Euler(0, 180, 0) * model.localRotation;
             model.localScale *= length / b.size.z;
             b = Bounds(model);
             model.localPosition -= new Vector3(b.center.x, b.min.y, b.center.z);

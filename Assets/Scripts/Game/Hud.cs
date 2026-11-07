@@ -14,9 +14,9 @@ namespace Geisterfahrer.Game
 
         public Action Play, Pause, Resume, Home, Retry;
 
-        static readonly Color Primary = Hex(0x3D7BFF), Good = Hex(0x2FD27A), Danger = Hex(0xFF4D4F);
+        static readonly Color Primary = Hex(0x3D7BFF), Good = Hex(0x2FD27A), Amber = Hex(0xFFB020);
         static readonly Color DimText = new Color(1, 1, 1, 0.75f), IconDim = new Color(1, 1, 1, 0.7f);
-        static Sprite circle, ring, rounded, roundedOutline, bar, edgeH, edgeV;
+        static Sprite circle, ring, rounded, roundedOutline, edgeH, edgeV;
 
         readonly TMP_FontAsset bold, semi, black;
         readonly Material boldShadow, semiShadow;
@@ -24,13 +24,15 @@ namespace Geisterfahrer.Game
         readonly Image[] edges = new Image[4]; // left, right, top, bottom
         readonly CanvasGroup hud, start, pause, over, touch;
         readonly TMP_Text speedValue, distance, startBestSpeed, startBestDist;
-        readonly Image speedFill;
-        readonly RectTransform safe, ring_, dot;
+        readonly Image white;
+        readonly RectTransform safe, ring_, dot, needle, gauge;
         readonly TMP_Text[] runValue = new TMP_Text[2], bestValue = new TMP_Text[2];
         readonly Image[] star = new Image[2];
         public readonly RectTransform PauseButton;
         float dimTarget, panelShownAt, ringAlpha;
         readonly float[] edgeAlpha = new float[4], edgeHold = new float[4], edgeRate = new float[4];
+        Color edgeColor;
+        float whiteAlpha, whiteHold, needleKmh, needleVel, digitalTimer;
         Screen screen;
         Rect lastSafe;
 
@@ -55,19 +57,25 @@ namespace Geisterfahrer.Game
             edges[1] = EdgeImage(flash, edgeH, new Vector2(1, 0), new Vector2(1, 1), new Vector2(1, 0.5f), new Vector2(220, 0), -1);
             edges[2] = EdgeImage(flash, edgeV, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, 160), 1);
             edges[3] = EdgeImage(flash, edgeV, new Vector2(0, 0), new Vector2(1, 0), new Vector2(0.5f, 0), new Vector2(0, 160), -1);
+            white = Img(Stretch(root, "CrashFlash"), null, new Color(1, 1, 1, 0));
             safe = Stretch(root, "SafeArea");
 
             // HUD
             hud = Panel("Panel_HUD");
-            var speed = Place(hud.transform, "Speed", new Vector2(0, 1), new Vector2(0, 1), new Vector2(56, -36), new Vector2(520, 152));
-            speedValue = Label(speed, new Vector2(0, 1), new Vector2(0, 1), Vector2.zero, new Vector2(330, 128), bold, boldShadow, 120, TextAlignmentOptions.BottomRight, Color.white);
-            Label(speed, new Vector2(0, 1), new Vector2(0, 1), new Vector2(342, -50), new Vector2(180, 64), semi, semiShadow, 44, TextAlignmentOptions.BottomLeft, DimText).text = "km/h";
-            var track = Img(Place(speed, "Track", new Vector2(0, 1), new Vector2(0, 1), new Vector2(4, -144), new Vector2(400, 6)), bar, new Color(1, 1, 1, 0.2f));
-            speedFill = Img(Stretch(track.rectTransform, "Fill"), bar, new Color(1, 1, 1, 0.9f));
-            speedFill.type = Image.Type.Filled;
-            speedFill.fillMethod = Image.FillMethod.Horizontal;
             distance = Label(hud.transform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -48), new Vector2(480, 96), bold, boldShadow, 80, TextAlignmentOptions.Center, Color.white);
-            var pb = Place(hud.transform, "Pause", new Vector2(1, 1), new Vector2(1, 1), new Vector2(-40, -28), new Vector2(128, 128));
+            // Round 911-style speedometer, top-right (ui-spec 6.2); pause moves top-left.
+            gauge = Place(hud.transform, "Gauge", new Vector2(1, 1), new Vector2(1, 1), new Vector2(-36, -24), new Vector2(320, 320));
+            Img(Place(gauge, "Face", Center, Center, Vector2.zero, new Vector2(320, 320)), Resources.Load<Sprite>("Icons/gauge-face"), Color.white);
+            var numerals = new[] { (0, -76.4f, -76.4f), (60, -107.7f, 7.7f), (120, -64.7f, 86.5f), (180, 23f, 105.5f), (240, 94.8f, 51.8f), (300, 101.2f, -37.7f) };
+            foreach (var (n, x, y) in numerals)
+                Label(gauge, Center, Center, new Vector2(x, y), new Vector2(48, 28), semi, null, 26, TextAlignmentOptions.Center, new Color(0.957f, 0.957f, 0.949f, 0.9f)).text = n.ToString();
+            speedValue = Label(gauge, Center, Center, new Vector2(0, -96), new Vector2(100, 56), bold, null, 56, TextAlignmentOptions.Center, Color.white);
+            Label(gauge, Center, Center, new Vector2(0, -128), new Vector2(100, 24), semi, null, 20, TextAlignmentOptions.Center, new Color(1, 1, 1, 0.65f)).text = "km/h";
+            needle = Place(gauge, "Needle", Center, new Vector2(0.5f, 0.136f), Vector2.zero, new Vector2(12, 162));
+            Img(needle, Resources.Load<Sprite>("Icons/gauge-needle"), new Color(0.957f, 0.957f, 0.949f));
+            Icon(gauge, "gauge-hub", Vector2.zero, 32, Color.white);
+
+            var pb = Place(hud.transform, "Pause", new Vector2(0, 1), new Vector2(0, 1), new Vector2(40, -28), new Vector2(128, 128));
             var pbImg = Img(pb, null, new Color(0, 0, 0, 0));
             pbImg.raycastTarget = true;
             Img(Place(pb, "Bg", Center, Center, Vector2.zero, new Vector2(96, 96)), circle, new Color(0, 0, 0, 0.35f));
@@ -135,11 +143,19 @@ namespace Geisterfahrer.Game
             Row(startBestDist, bestDist > 0 ? $"{bestDist / 1000:F2}<size=36><alpha=#B3> km" : "", 12);
         }
 
-        public void SetRun(double kmh, double meters, double topKmh)
+        public void SetRun(double kmh, double meters)
         {
-            speedValue.text = $"<mspace=0.6em>{(int)kmh}</mspace>";
             distance.text = $"{Mono((meters / 1000).ToString("F2"))}<size=44><alpha=#BF> km";
-            speedFill.fillAmount = (float)(kmh / topKmh);
+            // Needle: critically damped spring (w 14 rad/s), at most 600 deg/s; digital value at 10 Hz from the real speed.
+            float dt = Time.unscaledDeltaTime, w = 14;
+            float acc = w * w * ((float)kmh - needleKmh) - 2 * w * needleVel;
+            needleVel += acc * dt;
+            needleVel = Mathf.Clamp(needleVel, -600 * 330 / 270f, 600 * 330 / 270f);
+            needleKmh += needleVel * dt;
+            needle.localRotation = Quaternion.Euler(0, 0, -(-135 + 270 * Mathf.Clamp(needleKmh, 0, 330) / 330));
+            if ((digitalTimer -= dt) <= 0) { digitalTimer = 0.1f; speedValue.text = Mono(((int)kmh).ToString()); }
+            float h = ((RectTransform)gauge.root).rect.height;
+            gauge.localScale = Vector3.one * Mathf.Clamp(h * 0.3f / 320, 0.875f, 1);
         }
 
         public void SetResult(int i, string value, string unit, string best, bool newBest)
@@ -170,8 +186,11 @@ namespace Geisterfahrer.Game
         }
 
         // side: 0 left, 1 right, -1 all four. Full at once, hold, then fade out over `fadeOut` seconds.
+        // Light hits flash amber, a crash flashes white (red belongs to the player car).
         public void Flash(int side, float alpha, float hold, float fadeOut)
         {
+            edgeColor = side < 0 ? Color.white : Amber;
+            if (side < 0) { whiteAlpha = 0.35f; whiteHold = hold; }
             for (int i = 0; i < 4; i++)
                 if (side < 0 || i == side) { edgeAlpha[i] = Mathf.Max(edgeAlpha[i], alpha); edgeHold[i] = hold; edgeRate[i] = alpha / fadeOut; }
         }
@@ -182,10 +201,12 @@ namespace Geisterfahrer.Game
             var c = dim.color;
             c.a = Mathf.MoveTowards(c.a, dimTarget, dt / 0.25f);
             dim.color = c;
+            if ((whiteHold -= dt) <= 0) whiteAlpha = Mathf.MoveTowards(whiteAlpha, 0, dt * 0.35f / 0.5f);
+            white.color = new Color(1, 1, 1, whiteAlpha);
             for (int i = 0; i < 4; i++)
             {
                 if ((edgeHold[i] -= dt) <= 0) edgeAlpha[i] = Mathf.MoveTowards(edgeAlpha[i], 0, edgeRate[i] * dt);
-                var e = Danger; e.a = edgeAlpha[i];
+                var e = edgeColor; e.a = edgeAlpha[i];
                 edges[i].color = e;
             }
             foreach (var g in panels)
@@ -345,7 +366,6 @@ namespace Geisterfahrer.Game
             ring = Shape(256, 256, 128, 6, 0);
             rounded = Shape(128, 128, 44, 0, 48);
             roundedOutline = Shape(128, 128, 44, 4, 48);
-            bar = Shape(16, 8, 3, 0, 4);
             edgeH = Gradient(true);
             edgeV = Gradient(false);
         }

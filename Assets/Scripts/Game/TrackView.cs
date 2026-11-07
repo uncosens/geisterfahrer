@@ -83,7 +83,7 @@ namespace Geisterfahrer.Game
             var drop = new List<int>();
             foreach (var k in chunks.Keys) if (k < first || k > last) drop.Add(k);
             foreach (var k in drop) { chunks[k].SetActive(false); spare.Push(chunks[k]); chunks.Remove(k); }
-            for (int k = Mathf.Max(0, first); k <= last; k++)
+            for (int k = Mathf.Max(-1, first); k <= last; k++) // chunk -1: road behind the start, seen at standstill
                 if (!chunks.ContainsKey(k) && (k + 1) * ChunkLen < track.Generated - 10) chunks[k] = Build(k);
         }
 
@@ -117,17 +117,17 @@ namespace Geisterfahrer.Game
                 {
                     foreach (int side in new[] { -1, 1 })
                         b.Wall(s, e, side * (Rail + 0.04f), 0.395f, 0.705f, (int)M.Steel);
-                    float depth = kind == Section.Viaduct ? ValleyDepth(mid) : 0;
                     if (kind == Section.Viaduct)
                     {
                         foreach (int side in new[] { -1, 1 }) b.Box(mid, side * (Rail + 0.35f), 0.45f, 4, 0.3f, 0.9f, (int)M.Concrete);
-                        b.Box(mid, 0, -0.9f, 4, Rail * 2 + 1, 1.8f, (int)M.Concrete);
+                        b.Box(mid, 0, -1.05f, 4, Rail * 2 + 1, 1.8f, (int)M.Concrete); // deck slab, top 15 cm under the road (no z-fight)
                     }
-                    float gy = -depth - 0.05f;
-                    b.Strip(s, e, -40, -Rail, gy, (int)M.Grass, 3f);
-                    b.Strip(s, e, Rail, 40, gy, (int)M.Grass, 3f);
-                    b.Strip(s, e, -400, -40, gy - 0.05f, fieldL, 0);
-                    b.Strip(s, e, 40, 400, gy - 0.05f, fieldR, 0);
+                    // Ground follows the road (and the valley under a viaduct) with both strip ends at their own height, so no steps.
+                    float g0 = -Depth(s, kind) - 0.05f, g1 = -Depth(e, kind) - 0.05f;
+                    b.Strip(s, e, -40, -Rail, g0, (int)M.Grass, 3f, false, g1);
+                    b.Strip(s, e, Rail, 40, g0, (int)M.Grass, 3f, false, g1);
+                    b.Strip(s, e, -400, -40, g0 - 0.05f, fieldL, 0, false, g1 - 0.05f);
+                    b.Strip(s, e, 40, 400, g0 - 0.05f, fieldR, 0, false, g1 - 0.05f);
                 }
             }
 
@@ -193,6 +193,8 @@ namespace Geisterfahrer.Game
                 if (s > 0 && track.KindAt(s) == Section.Open) KmPost(go.transform, s);
             return go;
         }
+
+        float Depth(double s, Section kind) => kind == Section.Viaduct ? Mathf.Max(3, ValleyDepth(s)) : 0; // valley at least 3 m below the deck
 
         float ValleyDepth(double s)
         {
@@ -265,9 +267,10 @@ namespace Geisterfahrer.Game
             }
 
             // Flat strip from s0 to s1 between side offsets d0 < d1 at height y. tile > 0: world UVs in metres / tile.
-            public void Strip(double s0, double s1, float d0, float d1, float y, int sub, float tile, bool below = false)
+            public void Strip(double s0, double s1, float d0, float d1, float y, int sub, float tile, bool below = false, float y1 = float.NaN)
             {
-                Vector3 a = At(s0, d0, y), b = At(s1, d0, y), c = At(s1, d1, y), d = At(s0, d1, y);
+                if (float.IsNaN(y1)) y1 = y;
+                Vector3 a = At(s0, d0, y), b = At(s1, d0, y1), c = At(s1, d1, y1), d = At(s0, d1, y);
                 float t = tile > 0 ? tile : 1;
                 Vector2 ua = new Vector2(d0 / t, (float)(s0 / t)), ub = new Vector2(d0 / t, (float)(s1 / t)), uc = new Vector2(d1 / t, (float)(s1 / t)), ud = new Vector2(d1 / t, (float)(s0 / t));
                 if (below) Quad(a, d, c, b, sub, ua, ud, uc, ub); else Quad(a, b, c, d, sub, ua, ub, uc, ud);
@@ -281,6 +284,7 @@ namespace Geisterfahrer.Game
             public void Box(double s, float d, float y, float length, float width, float height, int sub)
             {
                 Frame(s, out var p, out var r, out var f);
+                f = (f + Vector3.up * (float)self.track.Grade(s)).normalized; // follow the slope
                 var c = p + r * d + Vector3.up * y;
                 Vector3 x = r * width / 2, z = f * length / 2, u = Vector3.up * height / 2;
                 var o = new[] { c - x - u - z, c + x - u - z, c + x + u - z, c - x + u - z, c - x - u + z, c + x - u + z, c + x + u + z, c - x + u + z };

@@ -93,7 +93,7 @@ namespace Geisterfahrer.Game
 
         static AndroidJavaObject vibrator;
 
-        static void Vibrate(long ms, int amplitude)
+        public static void Vibrate(long ms, int amplitude)
         {
 #if UNITY_ANDROID && !UNITY_EDITOR
             try

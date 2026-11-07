@@ -107,10 +107,12 @@ namespace Geisterfahrer.Core
             return Math.Max(m, Math.Abs(Curvature(b)));
         }
 
+        // ponytail: GDD wants a constant grade in tunnels; a change under 1 % is allowed, or tunnels almost never fit.
         bool ConstantGrade(double a, double b)
         {
-            for (int i = 0; i < vs.Count; i++) if (vs[i] > a && vs[i] < b && vg[i] != Grade(a)) return false;
-            return Math.Abs(Grade(b) - Grade(a)) < 1e-9;
+            double lo = Math.Min(Grade(a), Grade(b)), hi = Math.Max(Grade(a), Grade(b));
+            for (int i = 0; i < vs.Count; i++) if (vs[i] > a && vs[i] < b) { lo = Math.Min(lo, vg[i]); hi = Math.Max(hi, vg[i]); }
+            return hi - lo <= 0.01;
         }
 
         // ---- structures: one roll per km of new road (6.5) ----
@@ -122,8 +124,19 @@ namespace Geisterfahrer.Core
                 structuresDone = km + 1000;
                 if (Busy(km - 300, km + 1000)) continue;
                 double len = Rand(300, 1500);
-                if (rng.NextDouble() < TunnelPerKm[phase] && MaxCurvature(km - 200, km + len) == 0 && ConstantGrade(km, km + len))
-                    Structures.Add((km, km + len, Section.Tunnel)); // straight, constant grade, 200 m straight before
+                if (rng.NextDouble() < TunnelPerKm[phase])
+                {
+                    // First spot in this km with a straight, near-constant-grade stretch of at least 300 m
+                    // (200 m straight before the portal), as long as it lasts, up to 1500 m.
+                    for (double at = km; at < km + 1000; at += 50)
+                    {
+                        double room = 0;
+                        while (room < 1500 && MaxCurvature(at - 200, at + room + 100) == 0 && ConstantGrade(at, at + room + 100)) room += 100;
+                        if (room < 300) continue;
+                        Structures.Add((at, at + Rand(300, room), Section.Tunnel));
+                        break;
+                    }
+                }
                 else if (rng.NextDouble() < ViaductPerKm[phase] && MaxCurvature(km, km + len) <= 1 / 720.0)
                     Structures.Add((km, km + len, Section.Viaduct));
             }
