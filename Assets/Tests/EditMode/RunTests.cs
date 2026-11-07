@@ -9,7 +9,7 @@ namespace Geisterfahrer.Tests
     public class RunTests
     {
         const double Dt = 1.0 / 60;
-        const double VAT10 = 137.0, DAT10 = 230.7; // 10 s from standstill with the 140 kW model
+        const double VAT10 = 143.3, DAT10 = 230.7; // 10 s from standstill with the 155 kW model (decision 53)
         const int Compact = 0, Sedan = 1, Truck = 4;
 
         static Run NewRun(double kmh, double curvature = 0, double grade = 0)

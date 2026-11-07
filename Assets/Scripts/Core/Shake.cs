@@ -6,7 +6,7 @@ namespace Geisterfahrer.Core
     public static class Shake
     {
         public const double ShakeScale = 0.4; // max amplitude vs the old maximum
-        public const double MinKmh = 200, FullKmh = 400;
+        public const double MinKmh = 200, FullKmh = 340;
 
         // 0..1, grows with speed above 200 km/h. Zero when coasting, slow or game over.
         public static double Amount(double kmh, bool throttle, bool gameOver)

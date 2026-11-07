@@ -8,10 +8,10 @@ namespace Geisterfahrer.Core
     {
         // Forward force model (GDD 2.2)
         public double Mass = 1500;
-        public double Power = 140e3;           // was 260 kW: 0-100 in 5.6 s was too easy (decision 32)
+        public double Power = 155e3;           // 155 kW at the wheels (GDD v0.7, decision 53); was 140 kW
         public double Mu = 0.85;               // grip: scrub and curve drift
-        public double DriveMu = 0.60;          // traction limit of the drive force (0-100 in about 6 s)
-        public double CdA = 0.65;
+        public double DriveMu = 0.55;          // traction limit of the drive force (0-100 in 5.7 s); was 0.60
+        public double CdA = 0.30;             // m^2, was 0.65: flat ceiling 328 km/h
         public double AirDensity = 1.225;
         public double Crr = 0.012;
         public double EngineBrake = 400;
