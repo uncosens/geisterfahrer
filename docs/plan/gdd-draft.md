@@ -582,6 +582,7 @@ So:
 - On straights only: any straight of 500 m or more, starting after the first 500 m of the run, gets a tunnel with 90 % chance, and the first qualifying straight always does (the road is generated 2.5 km ahead, so a phase-based chance never fired in the first minute).
 - After 3 km of road without a tunnel the generator makes the next straight at least 1000 m long and puts a tunnel on it, so tunnels come about every 2.5–4 km.
 - Length 300–1500 m. Straight, no crest inside (it may climb or sag). 200 m straight before each portal (5.4).
+- Cross-section: a round bore. Vertical walls up to 1.0 m on the rail lines, then a half-ellipse vault of 6.5 m rise (4.6 m clearance at the lane edge). Earth mound over it, concrete portal ring at entry and exit, lamps along the crown.
 - Walls replace rails: same collision line, infinite mass. Lit with a row of ceiling lights; brighter entry and exit zones (about 100 m).
 - Density × 0.7 inside.
 

@@ -344,8 +344,8 @@ namespace Geisterfahrer.Game
 
             // Tunnel: exposure adapts over 0.5 s; sun and sky light fade inside; echo on.
             bool inTunnel = section == Section.Tunnel;
-            sun.intensity = Mathf.MoveTowards(sun.intensity, inTunnel ? sunIntensity * 0.25f : sunIntensity, dt * sunIntensity * 2);
-            RenderSettings.ambientIntensity = Mathf.MoveTowards(RenderSettings.ambientIntensity, inTunnel ? ambient * 0.55f : ambient, dt * 2);
+            sun.intensity = Mathf.MoveTowards(sun.intensity, inTunnel ? sunIntensity * 0.4f : sunIntensity, dt * sunIntensity * 2);
+            RenderSettings.ambientIntensity = Mathf.MoveTowards(RenderSettings.ambientIntensity, inTunnel ? ambient * 0.9f : ambient, dt * 2);
             echo.enabled = inTunnel;
 
             // Haptic rumble on the edge line: 10 ms every 60 ms.

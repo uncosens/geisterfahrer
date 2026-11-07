@@ -10,6 +10,8 @@ namespace Geisterfahrer.Game
     public class TrackView : MonoBehaviour
     {
         const float ChunkLen = 100, Ahead = 1500, Behind = 100, Rail = (float)Road.RailX, Lanes = (float)(Road.LaneCount * Road.LaneWidth / 2);
+        // Tunnel bore: vertical walls to Spring on the rail lines, then a half-ellipse vault of rise VaultH (GDD 6.4); earth Cover over it.
+        const float Spring = 1.0f, VaultH = 6.5f, Cover = 1.2f;
         enum M { Asphalt, Paint, Steel, Grass, White, Black, Concrete, SignBack, Lamp, Field0, Field1, Field2, Field3, Count }
 
         Track track;
@@ -110,10 +112,8 @@ namespace Geisterfahrer.Game
 
                 if (kind == Section.Tunnel)
                 {
-                    foreach (int side in new[] { -1, 1 }) b.Wall(s, e, side * Rail, 0, 6, (int)M.Concrete);
-                    b.Strip(s, e, -Rail, Rail, 6.5f, (int)M.Concrete, 0, true);
-                    foreach (int side in new[] { -1, 1 }) b.Strip(s, e, side < 0 ? -40 : Rail, side < 0 ? -Rail : 40, 12, (int)M.Grass, 3f); // hill above
-                    foreach (int side in new[] { -1, 1 }) b.Wall(s, e, side * Rail, 6, 6.5f, (int)M.Concrete);
+                    b.Arch(s, e, Rail, VaultH, Spring, (int)M.Concrete, true, 0);                 // the bore, seen from inside
+                    b.Arch(s, e, Rail + Cover, VaultH + Cover, Spring, (int)M.Grass, false, 3f);  // earth mound over it, seen from outside
                 }
                 else
                 {
@@ -124,13 +124,14 @@ namespace Geisterfahrer.Game
                         foreach (int side in new[] { -1, 1 }) b.Box(mid, side * (Rail + 0.35f), 0.45f, 4, 0.3f, 0.9f, (int)M.Concrete);
                         b.Box(mid, 0, -1.05f, 4, Rail * 2 + 1, 1.8f, (int)M.Concrete); // deck slab, top 15 cm under the road (no z-fight)
                     }
-                    // Ground follows the road (and the valley under a viaduct) with both strip ends at their own height, so no steps.
-                    float g0 = -Depth(s, kind) - 0.05f, g1 = -Depth(e, kind) - 0.05f;
-                    b.Strip(s, e, -40, -Rail, g0, (int)M.Grass, 3f, false, g1);
-                    b.Strip(s, e, Rail, 40, g0, (int)M.Grass, 3f, false, g1);
-                    b.Strip(s, e, -400, -40, g0 - 0.05f, fieldL, 0, false, g1 - 0.05f);
-                    b.Strip(s, e, 40, 400, g0 - 0.05f, fieldR, 0, false, g1 - 0.05f);
                 }
+                // Ground follows the road (and the valley under a viaduct) with both strip ends at their own height, so no steps.
+                float inner = kind == Section.Tunnel ? Rail + Cover : Rail;
+                float g0 = -Depth(s, kind) - 0.05f, g1 = -Depth(e, kind) - 0.05f;
+                b.Strip(s, e, -40, -inner, g0, (int)M.Grass, 3f, false, g1);
+                b.Strip(s, e, inner, 40, g0, (int)M.Grass, 3f, false, g1);
+                b.Strip(s, e, -400, -40, g0 - 0.05f, fieldL, 0, false, g1 - 0.05f);
+                b.Strip(s, e, 40, 400, g0 - 0.05f, fieldR, 0, false, g1 - 0.05f);
             }
 
             for (double s = Mathf.Ceil((float)(s0 / 2)) * 2; s < s1; s += 2)
@@ -138,7 +139,7 @@ namespace Geisterfahrer.Game
                 var kind = track.KindAt(s);
                 if (kind != Section.Tunnel) // guardrail posts every 2 m
                     foreach (int side in new[] { -1, 1 }) b.Box(s, side * (Rail + 0.12f), 0.375f, 0.05f, 0.1f, 0.75f, (int)M.Steel);
-                if (kind == Section.Tunnel && s % (TunnelZone(s) ? 4 : 12) < 0.01) b.Box(s, 0, 6.45f, 0.6f, 1.2f, 0.08f, (int)M.Lamp);
+                if (kind == Section.Tunnel && s % (TunnelZone(s) ? 4 : 12) < 0.01) b.Box(s, 0, Spring + VaultH - 0.1f, 0.6f, 1.2f, 0.08f, (int)M.Lamp);
                 if (kind == Section.Viaduct && s % 40 < 0.01)
                     foreach (int side in new[] { -1, 1 }) b.Box(s, side * 5, -ValleyDepth(s) / 2, 2.5f, 2.5f, ValleyDepth(s), (int)M.Concrete);
                 // Chevron boards every 20 m on the outer side of curves under 1000 m, seen from behind (grey back, white frame).
@@ -169,15 +170,12 @@ namespace Geisterfahrer.Game
                         b.Box(s, side * (Rail + 0.5f), 0.725f, 0.105f, 0.125f, 0.25f, (int)M.Black);
                     }
 
-            // Tunnel portals: a concrete face around each opening.
+            // Tunnel portals: a concrete ring around each opening, entry and exit.
             foreach (var st in track.Structures)
                 if (st.kind == Section.Tunnel)
                     foreach (double ps in new[] { st.s0, st.s1 })
                         if (ps >= s0 && ps < s1)
-                        {
-                            foreach (int side in new[] { -1, 1 }) b.Box(ps, side * (Rail + 6), 6, 1, 12, 12, (int)M.Concrete);
-                            b.Box(ps, 0, 9.25f, 1, Rail * 2, 5.5f, (int)M.Concrete);
-                        }
+                            b.Ring(ps, Rail, VaultH, Spring, Cover, (int)M.Concrete); // portal ring around the opening
 
             // Overpasses: deck 12 m wide, 4.7 m clearance, piers outside the rails and in the median.
             foreach (double os in track.Overpasses)
@@ -255,17 +253,71 @@ namespace Geisterfahrer.Game
         {
             readonly List<Vector3> v = new List<Vector3>();
             readonly List<Vector2> uv = new List<Vector2>();
+            readonly List<Vector3> nrm = new List<Vector3>();
             readonly List<int>[] tris = new List<int>[(int)M.Count];
 
             public Builder() { for (int i = 0; i < tris.Length; i++) tris[i] = new List<int>(); }
 
-            void Quad(Vector3 a, Vector3 b, Vector3 c, Vector3 d, int sub, Vector2 ua, Vector2 ub, Vector2 uc, Vector2 ud, bool twoSided = false)
+            // normals: per-corner (smooth surfaces); null = the flat face normal.
+            void Quad(Vector3 a, Vector3 b, Vector3 c, Vector3 d, int sub, Vector2 ua, Vector2 ub, Vector2 uc, Vector2 ud, bool twoSided = false, Vector3[] normals = null)
             {
                 int n = v.Count;
                 v.Add(a); v.Add(b); v.Add(c); v.Add(d);
                 uv.Add(ua); uv.Add(ub); uv.Add(uc); uv.Add(ud);
+                if (normals != null) nrm.AddRange(normals);
+                else { var f = Vector3.Cross(b - a, c - a).normalized; nrm.Add(f); nrm.Add(f); nrm.Add(f); nrm.Add(f); }
                 tris[sub].AddRange(new[] { n, n + 1, n + 2, n, n + 2, n + 3 });
-                if (twoSided) tris[sub].AddRange(new[] { n, n + 2, n + 1, n, n + 3, n + 2 });
+                if (twoSided) Quad(a, d, c, b, sub, ua, ud, uc, ub); // the back face gets its own vertices, so its normals point the other way
+            }
+
+            // Cross-section of a bore from the left wall foot, up the wall, over the half-ellipse vault, down the right wall.
+            static List<Vector2> Section2D(float a, float rise, float spring)
+            {
+                var r = new List<Vector2> { new Vector2(-a, 0), new Vector2(-a, spring) };
+                const int N = 24;
+                for (int i = 1; i < N; i++)
+                {
+                    float th = Mathf.PI * (1 - i / (float)N);
+                    r.Add(new Vector2(a * Mathf.Cos(th), spring + rise * Mathf.Sin(th)));
+                }
+                r.Add(new Vector2(a, spring)); r.Add(new Vector2(a, 0));
+                return r;
+            }
+
+            // Tube along the road between s0 and s1; inward = surface faces the middle of the bore. tile > 0: UVs in metres / tile.
+            public void Arch(double s0, double s1, float a, float rise, float spring, int sub, bool inward, float tile)
+            {
+                var r = Section2D(a, rise, spring);
+                float t = tile > 0 ? tile : 1, v0 = 0;
+                // Smooth normals: outward direction of the section at each ring point (flipped for the inside of the bore).
+                Frame(s0, out _, out var r0, out _);
+                Frame(s1, out _, out var r1, out _);
+                Vector3 Nrm(Vector3 right, int j)
+                {
+                    var tan = (r[Mathf.Min(j + 1, r.Count - 1)] - r[Mathf.Max(j - 1, 0)]).normalized;
+                    var o = new Vector2(-tan.y, tan.x) * (inward ? -1 : 1);
+                    return (right * o.x + Vector3.up * o.y).normalized;
+                }
+                for (int j = 0; j + 1 < r.Count; j++)
+                {
+                    float v1 = v0 + Vector2.Distance(r[j], r[j + 1]);
+                    Vector3 A = At(s0, r[j].x, r[j].y), B = At(s1, r[j].x, r[j].y), C = At(s1, r[j + 1].x, r[j + 1].y), D = At(s0, r[j + 1].x, r[j + 1].y);
+                    Vector3 nA = Nrm(r0, j), nB = Nrm(r1, j), nC = Nrm(r1, j + 1), nD = Nrm(r0, j + 1);
+                    Vector2 ua = new Vector2((float)s0 / t, v0 / t), ub = new Vector2((float)s1 / t, v0 / t), uc = new Vector2((float)s1 / t, v1 / t), ud = new Vector2((float)s0 / t, v1 / t);
+                    if (inward) Quad(A, D, C, B, sub, ua, ud, uc, ub, false, new[] { nA, nD, nC, nB });
+                    else Quad(A, B, C, D, sub, ua, ub, uc, ud, false, new[] { nA, nB, nC, nD });
+                    v0 = v1;
+                }
+            }
+
+            // Flat ring face at s between the bore and the mound (portal), visible from both sides.
+            public void Ring(double s, float a, float rise, float spring, float cover, int sub)
+            {
+                var inner = Section2D(a, rise, spring);
+                var outer = Section2D(a + cover, rise + cover, spring);
+                for (int j = 0; j + 1 < inner.Count; j++)
+                    Quad(At(s, inner[j].x, inner[j].y), At(s, outer[j].x, outer[j].y), At(s, outer[j + 1].x, outer[j + 1].y), At(s, inner[j + 1].x, inner[j + 1].y),
+                        sub, Vector2.zero, Vector2.up, Vector2.one, Vector2.right, true);
             }
 
             // Flat strip from s0 to s1 between side offsets d0 < d1 at height y. tile > 0: world UVs in metres / tile.
@@ -302,7 +354,7 @@ namespace Geisterfahrer.Game
                 m.SetUVs(0, uv);
                 m.subMeshCount = tris.Length;
                 for (int i = 0; i < tris.Length; i++) m.SetTriangles(tris[i], i);
-                m.RecalculateNormals();
+                m.SetNormals(nrm);
                 m.RecalculateBounds();
             }
         }
