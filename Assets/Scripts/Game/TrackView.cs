@@ -29,7 +29,7 @@ namespace Geisterfahrer.Game
             mats = new Material[(int)M.Count];
             mats[(int)M.Asphalt] = Placeholder.CalmAsphalt(2 * (Rail + 0.1f), 2.08f); // matches the road Strip below
             mats[(int)M.Paint] = Placeholder.Mat(Placeholder.Hex(0xE9E9E4), 0, 0.35f);
-            mats[(int)M.Steel] = Placeholder.Mat(Placeholder.Hex(0x959BA1), 0.5f, 0.3f); // matte steel: bright metal mirrored the sky
+            mats[(int)M.Steel] = Placeholder.Mat(Placeholder.Hex(0x959BA1), 0.2f, 0.25f); // matte steel: bright metal mirrored the sky (blue-violet rails)
             mats[(int)M.Grass] = art.grass ? art.grass : Placeholder.Mat(Placeholder.Hex(0x6F8A3E), 0, 0.1f);
             mats[(int)M.White] = Placeholder.Mat(Placeholder.Hex(0xF2F2F0), 0, 0.3f);
             mats[(int)M.Black] = Placeholder.Mat(Placeholder.Hex(0x1A1A1A), 0, 0.3f);

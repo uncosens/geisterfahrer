@@ -14,7 +14,7 @@ Endless wrong-way driving on the German Autobahn. Unity 6.3 (URP), Android, land
 | `Assets/Scripts/Core` | Pure C# rules, no Unity references: car force model (scrub, grade), curve drift, contacts and impulse, traffic with wander and the safe corridor, procedural `Track` |
 | `Assets/Scripts/Game` | Unity side: `GameLoop` (views, camera, driving feel, sound layers), `Hud` (uGUI and 911 gauge per `docs/design/ui-spec.md`), `TrackView` (road mesh chunks), `Feedback` (sparks, shake, haptics), `DriveInput`, placeholders, sounds |
 | `Assets/Scripts/Game/Editor` | `BuildScript`: `Setup` (materials, fonts, sky, post, scene) and the Android build; `TrackShots` renders road features to `docs/dev/shots/track-*.png` |
-| `Assets/Tests/EditMode` | Tests for Core |
+| `Assets/Tests/EditMode` | Tests for Core and for the input logic |
 | `tools/fetch-assets.sh` | Downloads the free sky, textures and fonts into the git-ignored `Assets/ThirdParty/` |
 
 All tuning numbers are in `Core/Tuning.cs` (editable on the `GameLoop` component). Lanes, vehicle sizes, masses and spawn weights are in `Core/Road.cs`.
@@ -40,6 +40,22 @@ Add `-release` to the build line for a non-development APK (`Builds/Android/geis
 Dev builds log `PERF fps … worst … ms` every 5 s: `adb -s <serial> logcat -s Unity | findstr PERF`.
 
 Controls: left half = steer (drag from where you touch), right half = accelerate. Editor: A/D or arrows, W or Space, Esc/P pause, Enter play/retry.
+
+## Checked (2026-11-07, playtest changes, GDD v0.5)
+
+| What | Where | Result |
+|---|---|---|
+| 55 EditMode tests: slower power model (0-100 5.7 s, 100-200 18.6 s, ceiling 247 km/h), +40 % steering, slower return, +40 % traffic, tunnel within 4 km for 30 seeds, two-finger input logic | batch mode | all pass |
+| Red 911, grey overpass and tunnel concrete, tunnel entry / inside / exit (`tab-tunnel-*.png`), traffic in many colours and 7 types (`tab-traffic.png`) | Galaxy Tab S7 | works |
+| Tap on Play does not start the run; the run starts on the first gas press (`RUNSTART` log) | Galaxy Tab S7 | works |
+| Shake only with gas held above 150 km/h (`shake` field of the PERF log) | Galaxy Tab S7 | 0.0 below 150 km/h and when coasting, 1.0 above 150 with gas |
+| Autopilot runs, up to 215 km/h, tunnels, 3-7 cars on screen; stress run with 3.5 x traffic: 10-25 cars on screen | Galaxy Tab S7, dev build | 60.0 fps in every 5 s sample, worst frame 16.9 ms (blips of 33-42 ms only at a crash restart), 87-93 MB |
+
+Not checked: two real thumbs at once on glass (adb injects one finger; the logic is covered by `InputTests`), vibration and sound by ear, the paint tint on the Van model by eye.
+
+Dev tools: a file `autodrive` in `/sdcard/Android/data/com.uncosens.geisterfahrer/files/` makes a dev build drive itself (text `density=3.5` and `immortal` inside change the traffic and make hits harmless). Remove the file to play by hand. `adb -s <serial> logcat -s Unity` shows `PERF` and `RUNSTART` lines.
+
+Extra model files for variety: `Compact2.glb`, `Sedan2.glb`, `Van2.glb`, `Bus2.glb`, `Truck2.glb` in `Assets/ThirdParty/Vehicles/` are picked at random next to the first ones (fallback picks in `docs/design/vehicle-assets.md`; Sketchfab needs a login, so not fetched here).
 
 ## Checked (2026-11-07, GDD v0.4)
 

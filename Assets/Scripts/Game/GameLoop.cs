@@ -44,6 +44,15 @@ namespace Geisterfahrer.Game
         void Awake()
         {
             Application.targetFrameRate = 60;
+            var autoFile = System.IO.Path.Combine(Application.persistentDataPath, "autodrive");
+            autodrive = Debug.isDebugBuild && System.IO.File.Exists(autoFile);
+            if (autodrive) // the file may hold "density=3" (more traffic, to test fps) and "immortal" (hits never end the run)
+            {
+                var text = System.IO.File.ReadAllText(autoFile);
+                var m = System.Text.RegularExpressions.Regex.Match(text, @"density=([0-9.]+)");
+                if (m.Success) tuning.DensityScale = float.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+                if (text.Contains("immortal")) tuning.CrashImpulse = double.MaxValue;
+            }
             Screen.sleepTimeout = SleepTimeout.NeverSleep;
             Placeholder.BaseMat = art.baseLit;
             input = new DriveInput();
@@ -118,6 +127,7 @@ namespace Geisterfahrer.Game
         {
             foreach (var kv in views) Release(kv.Key, kv.Value);
             views.Clear();
+            wasStarted = false;
             run = new Run(tuning, seed++);
             road.Init(art, run.Track);
             lastHits = 0;
@@ -128,7 +138,7 @@ namespace Geisterfahrer.Game
 
         void Go(State s)
         {
-            if (s == State.Playing) input.IgnoreCurrent(); // the thumb that tapped Play, Retry or Resume must not start the run
+            if (s == State.Playing) { input.IgnoreCurrent(); inputLockUntil = Time.unscaledTime + 0.3f; } // the thumb that tapped Play, Retry or Resume must not start the run
             state = s;
             hud.Show(s == State.Start ? Hud.Screen.Start : s == State.Paused ? Hud.Screen.Pause : s == State.Over ? Hud.Screen.Over : Hud.Screen.Hud);
             hud.SetBest(PlayerPrefs.GetFloat("bestSpeed", 0), PlayerPrefs.GetFloat("bestDist", 0));
@@ -139,11 +149,15 @@ namespace Geisterfahrer.Game
             var k = Keyboard.current;
             bool pauseKey = k != null && (k.escapeKey.wasPressedThisFrame || k.pKey.wasPressedThisFrame);
             input.Update(p => state != State.Playing || RectTransformUtility.RectangleContainsScreenPoint(hud.PauseButton, p, null));
+            if (autodrive) Autopilot();
+            else if (Time.unscaledTime < inputLockUntil) { input.Gas = false; input.Steer = 0; } // 0.3 s after Play / Retry / Resume
 
             if (state == State.Playing)
             {
                 if (pauseKey) Go(State.Paused);
                 run.Step(Mathf.Min(Time.deltaTime, 0.05f), input.Steer, input.Gas);
+                if (run.Started && !wasStarted) Debug.Log($"RUNSTART gas {input.Gas} steer {input.Steer:F2} lock {inputLockUntil - Time.unscaledTime:F2}");
+                wasStarted = run.Started;
                 Effects();
             }
             else if (state == State.Paused && pauseKey) Go(State.Playing);
@@ -168,6 +182,26 @@ namespace Geisterfahrer.Game
             hud.Tick();
             if (Debug.isDebugBuild) Perf();
         }
+
+        // Dev builds with a file `autodrive` in the app's files folder (adb shell touch /sdcard/Android/data/<id>/files/autodrive):
+        // the car drives itself (gas, follows the safe corridor, lifts for curves, replays after a crash), so fps, tunnels
+        // and traffic can be checked without hands.
+        bool autodrive; // set in Awake: Debug.isDebugBuild may not be read in a field initializer
+
+        void Autopilot()
+        {
+            if (state == State.Start || state == State.Over) { if (Time.unscaledTime - lastAutoPress > 2) { lastAutoPress = Time.unscaledTime; hud.Play(); } return; }
+            if (state != State.Playing) return;
+            double s = run.Distance, kappa = run.Track.Curvature(s), look = 0;
+            for (int i = 1; i <= 12; i++) look = System.Math.Max(look, System.Math.Abs(run.Track.Curvature(s + i * 40)));
+            double vmax = look > 1e-6 ? System.Math.Sqrt((0.7 * run.T.Mu * 9.81 + 9.81 * run.T.Superelevation) / look) : 1000;
+            float target = (float)run.CorridorAt(run.Time + 1.5);
+            input.Gas = run.V < vmax;
+            input.Steer = Mathf.Clamp(0.5f * (target - (float)run.X) + (float)System.Math.Sign(kappa) * (float)run.SHold, -1, 1);
+        }
+
+        float lastAutoPress, inputLockUntil;
+        bool wasStarted;
 
         // Dev builds: one logcat line every 5 s (adb logcat -s Unity | findstr PERF).
         float perfTime, perfWorst;
@@ -299,8 +333,8 @@ namespace Geisterfahrer.Game
 
             // Tunnel: exposure adapts over 0.5 s; sun and sky light fade inside; echo on.
             bool inTunnel = section == Section.Tunnel;
-            sun.intensity = Mathf.MoveTowards(sun.intensity, inTunnel ? sunIntensity * 0.15f : sunIntensity, dt * sunIntensity * 2);
-            RenderSettings.ambientIntensity = Mathf.MoveTowards(RenderSettings.ambientIntensity, inTunnel ? ambient * 0.35f : ambient, dt * 2);
+            sun.intensity = Mathf.MoveTowards(sun.intensity, inTunnel ? sunIntensity * 0.25f : sunIntensity, dt * sunIntensity * 2);
+            RenderSettings.ambientIntensity = Mathf.MoveTowards(RenderSettings.ambientIntensity, inTunnel ? ambient * 0.55f : ambient, dt * 2);
             echo.enabled = inTunnel;
 
             // Haptic rumble on the edge line: 10 ms every 60 ms.

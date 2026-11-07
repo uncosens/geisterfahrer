@@ -174,7 +174,7 @@ namespace Geisterfahrer.Game
                     if (n.Contains("paint")) ms[i] = Fresh(new Material(BaseMat), paintable);
                     else if (n.Contains("glass")) ms[i] = GlassMat;
                     else if (tintBody && !hasPaint && (Textured(ms[i]) ? !hasBrightPlain : BodyLike(ms[i])) && !n.Contains("tyre") && !n.Contains("wheel"))
-                        ms[i] = Fresh(new Material(ms[i]), paintable);
+                        ms[i] = Fresh(LitFrom(ms[i]), paintable);
                 }
                 r.sharedMaterials = ms;
             }
@@ -187,15 +187,31 @@ namespace Geisterfahrer.Game
             return root.gameObject;
         }
 
-        static bool Textured(Material m) => m.HasProperty("_BaseMap") && m.GetTexture("_BaseMap") != null;
+        // glTFast materials use their own shader (baseColorFactor / baseColorTexture), not URP Lit's _BaseColor / _BaseMap.
+        static Texture TextureOf(Material m)
+            => m.HasProperty("baseColorTexture") ? m.GetTexture("baseColorTexture") : m.HasProperty("_BaseMap") ? m.GetTexture("_BaseMap") : null;
 
-        static Material Fresh(Material m, Paintable p) { p.Add(m); return m; }
+        static Color ColorOf(Material m)
+            => m.HasProperty("baseColorFactor") ? m.GetColor("baseColorFactor") : m.HasProperty("_BaseColor") ? m.GetColor("_BaseColor") : Color.white;
+
+        static bool Textured(Material m) => TextureOf(m) != null;
 
         static bool BodyLike(Material m)
         {
-            var c = m.color;
+            var c = ColorOf(m);
             return Mathf.Min(c.r, c.g, c.b) > 0.55f;
         }
+
+        // A URP Lit copy of a glTF material (its texture kept), so the body colour can be set like any other paint.
+        static Material LitFrom(Material src)
+        {
+            var m = new Material(BaseMat);
+            var tex = TextureOf(src);
+            if (tex) m.mainTexture = tex;
+            return m;
+        }
+
+        static Material Fresh(Material m, Paintable p) { p.Add(m); return m; }
 
         // Primitive stand-in whose body colour can be changed like a model's.
         public static GameObject PaintableVehicle(string name, float l, float w, float h, Material rear = null)
