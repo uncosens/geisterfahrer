@@ -195,6 +195,13 @@ namespace Geisterfahrer.Game
                 if (side < 0 || i == side) { edgeAlpha[i] = Mathf.Max(edgeAlpha[i], alpha); edgeHold[i] = hold; edgeRate[i] = alpha / fadeOut; }
         }
 
+        // Small always-visible mark while a test flag file is active, so a test build is never played by mistake.
+        public void TestMarker()
+        {
+            var t = Label(safe, new Vector2(0, 0), new Vector2(0, 0), new Vector2(40, 40), new Vector2(160, 48), black, null, 36, TextAlignmentOptions.Center, new Color(1, 0.69f, 0.13f, 0.9f));
+            t.text = "TEST";
+        }
+
         public void Tick()
         {
             float dt = Time.unscaledDeltaTime;

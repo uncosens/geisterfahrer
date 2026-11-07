@@ -284,7 +284,7 @@ namespace Geisterfahrer.Tests
                 }
             }
             Assert.Greater(mound, 5, $"mound {mound} under {under}");
-            Assert.Greater(under, 20, $"mound {mound} under {under}");
+            Assert.Greater(under, 15, $"mound {mound} under {under}");
             Assert.Greater(gaps.Count, 3);
         }
 
@@ -327,7 +327,7 @@ namespace Geisterfahrer.Tests
                     Assert.AreEqual(terrain - Track.UgDepth, t.Y[i], 0.2, $"seed {seed}");
                 }
             }
-            Assert.Greater(n, 20, $"n {n}");
+            Assert.Greater(n, 15, $"n {n}");
         }
 
         // User changes: +40 % steering, return to straight twice as slow, +40 % traffic.

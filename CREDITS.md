@@ -22,7 +22,7 @@ On each page: Download 3D Model → **glTF Binary (.glb)**. Save the file under 
 
 | Save as `Assets/ThirdParty/Vehicles/…` | Model | Attribution (CC BY 4.0) |
 |---|---|---|
-| `Player.glb` | https://sketchfab.com/3d-models/porsche-911-s-992-low-poly-16881132aa764a18ad465e2a1d27851b | "Porsche 911 S 992 Low Poly" by Pavel6678 (https://sketchfab.com/Pavel6678), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), modified (scaled) |
+| `Player.glb` | https://sketchfab.com/3d-models/97785983d3a949cf87e9ee6bf49f4032 | "Porsche 911 Carrera S (991)" by Mona x Supercars (https://sketchfab.com/Car2022), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), modified (recoloured, scaled, wheels split into separate parts). Replaces the 992 low-poly model by Pavel6678. |
 | `Compact.glb` | https://sketchfab.com/3d-models/1998-volkswagen-golf-mk4-ec7b2f2fd567419a965db5b07b777c0c | "1998 Volkswagen Golf Mk4" by ImperialBlue3D (https://sketchfab.com/ImperialBlue3D), licensed under CC BY 4.0, modified (scaled) |
 | `Sedan.glb` | https://sketchfab.com/3d-models/low-poly-bmw-m5-f90-87102e4f8f2b42c087ff1a4423b5cccd | "Low Poly BMW M5 F90" by kulonee (https://sketchfab.com/ynesolefru), licensed under CC BY 4.0, modified (scaled) |
 | `Van.glb` | https://sketchfab.com/3d-models/mercedes-sprinter-passenger-d3029b62317c4956bd0a28140ffef83d | "Mercedes Sprinter Passenger" by kuwalol93 (https://sketchfab.com/kuwalol93), licensed under CC BY 4.0, modified (scaled) |

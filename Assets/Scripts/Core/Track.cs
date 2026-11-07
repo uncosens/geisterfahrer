@@ -123,10 +123,10 @@ namespace Geisterfahrer.Core
             double g = Rand(-MaxGrade[phase], MaxGrade[phase]);
             double len = Rand(400, 2000);
             // No crest inside a curve with R < 1500 m: move the crest past such curves (5.4).
-            double rv = g < g0 ? 15000 : 9000, lt = rv * Math.Abs(g - g0);
+            double rv = g < g0 ? 20000 : 9000, lt = rv * Math.Abs(g - g0);
             while (g < g0 && MaxCurvature(s, s + lt) > 1 / 1500.0) s += 50;
             // No curve under 1000 m on a downhill steeper than -2 % (6.3).
-            if (g < -0.02 && MaxCurvature(s, s + lt + len) > 1 / 1000.0) { g = -0.02; lt = (g < g0 ? 15000 : 9000) * Math.Abs(g - g0); }
+            if (g < -0.02 && MaxCurvature(s, s + lt + len) > 1 / 1000.0) { g = -0.02; lt = (g < g0 ? 20000 : 9000) * Math.Abs(g - g0); }
             Knot(vs, vg, s, g0);
             Knot(vs, vg, s + lt, g);
             Knot(vs, vg, s + lt + len, g);

@@ -53,7 +53,7 @@ Controls: left half = steer (drag from where you touch), right half = accelerate
 
 Not checked: two real thumbs at once on glass (adb injects one finger; the logic is covered by `InputTests`), vibration and sound by ear, the paint tint on the Van model by eye.
 
-Dev tools: a file `autodrive` in `/sdcard/Android/data/com.uncosens.geisterfahrer/files/` makes a dev build drive itself (text `density=3.5` and `immortal` inside change the traffic and make hits harmless). Remove the file to play by hand. `adb -s <serial> logcat -s Unity` shows `PERF` and `RUNSTART` lines.
+Dev tools: a file `autodrive` in `/sdcard/Android/data/com.uncosens.geisterfahrer/files/` makes a dev build drive itself (text `density=3.5` and `immortal` inside change the traffic and make hits harmless). Remove the file to play by hand. The flag counts for 10 minutes after the file's last write (the app deletes an older one at start; `adb shell touch` it to renew), and a TEST mark shows on screen while it is active. Tests must remove it in a `finally` / at the end and check with `adb -s <serial> shell ls /sdcard/Android/data/com.uncosens.geisterfahrer/files/`. `adb -s <serial> logcat -s Unity` shows `PERF` and `RUNSTART` lines.
 
 Extra model files for variety: `Compact2.glb`, `Sedan2.glb`, `Van2.glb`, `Bus2.glb`, `Truck2.glb` in `Assets/ThirdParty/Vehicles/` are picked at random next to the first ones (fallback picks in `docs/design/vehicle-assets.md`; Sketchfab needs a login, so not fetched here).
 

@@ -207,7 +207,7 @@ MonoBehaviour:
       - {fileID: -6689036041284674117, guid: 5c1c495832a2f3d40a6337195295ab9c, type: 3}
     - list:
       - {fileID: -6689036041284674117, guid: 5eb78b2b689a75b43be6539d82c35311, type: 3}
-    player: {fileID: -6689036041284674117, guid: d56406cd4213a50488600d2b28127a74, type: 3}
+    player: {fileID: 1282477035187379017, guid: e5119f168b6b78848a5025adfd69727f, type: 3}
 --- !u!4 &161967321
 Transform:
   m_ObjectHideFlags: 0

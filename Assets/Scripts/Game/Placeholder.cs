@@ -146,9 +146,9 @@ namespace Geisterfahrer.Game
         // Wraps a downloaded model so it follows the prefab rules: long axis on z, scaled to the real length,
         // footprint centred on the root, wheels on y = 0.
         // ponytail: front vs back can't be told from bounds; models built facing -z are listed in GameLoop.Flipped.
-        // Materials named "...paint..." get their own instance (Paintable) and "...glass..." becomes our glass. Without a paint
+        // Materials named "...paint..." (or exactly paintMat, lower case) get their own instance (Paintable) and "...glass..." becomes our glass. Without a paint
         // material and with tintBody, bright body-like materials are cloned and tinted instead (the model's body colour is baked in).
-        public static GameObject Fit(GameObject prefab, float length, string name, bool flip, bool tintBody)
+        public static GameObject Fit(GameObject prefab, float length, string name, bool flip, bool tintBody, string paintMat = null)
         {
             var root = new GameObject(name).transform;
             var model = Object.Instantiate(prefab, root).transform;
@@ -161,7 +161,7 @@ namespace Geisterfahrer.Game
                 {
                     if (!m) continue;
                     string n = m.name.ToLowerInvariant();
-                    hasPaint |= n.Contains("paint");
+                    hasPaint |= n.Contains("paint") || n == paintMat;
                     hasBrightPlain |= !Textured(m) && BodyLike(m);
                 }
             foreach (var r in renderers)
@@ -171,8 +171,8 @@ namespace Geisterfahrer.Game
                 {
                     if (!ms[i]) continue;
                     string n = ms[i].name.ToLowerInvariant();
-                    if (n.Contains("paint")) ms[i] = Fresh(new Material(BaseMat), paintable);
-                    else if (n.Contains("glass")) ms[i] = GlassMat;
+                    if (n.Contains("paint") || n == paintMat) ms[i] = Fresh(new Material(BaseMat), paintable);
+                    else if (n.Contains("glass") || n.Contains("window")) ms[i] = GlassMat;
                     else if (tintBody && !hasPaint && (Textured(ms[i]) ? !hasBrightPlain : BodyLike(ms[i])) && !n.Contains("tyre") && !n.Contains("wheel"))
                         ms[i] = Fresh(LitFrom(ms[i]), paintable);
                 }

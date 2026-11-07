@@ -34,7 +34,7 @@ namespace Geisterfahrer.Editor
             void Car(int type, float z, float x, bool oncoming)
             {
                 var t = type < 0 ? null : Road.Types[type];
-                var go = type < 0 ? Game.Placeholder.Fit(art.player, (float)Road.PlayerLength, "Player", true, false)
+                var go = type < 0 ? Game.Placeholder.Fit(art.player, (float)Road.PlayerLength, "Player", false, false, Game.GameLoop.PlayerPaintMaterial)
                     : Game.Placeholder.Fit(art.vehicles[type].list[0], (float)t.Length, t.Name, false, t.Name != "Bus" && t.Name != "Truck");
                 go.GetComponent<Game.Paintable>().Paint(type < 0 ? Game.Placeholder.PlayerRed : Game.Placeholder.RandomPaint(ref lastPaint));
                 go.transform.SetPositionAndRotation(Game.TrackView.Place(z, x), Game.TrackView.Facing(z) * Quaternion.Euler(0, oncoming ? 180 : 0, 0));

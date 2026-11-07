@@ -65,7 +65,7 @@ namespace Geisterfahrer.Editor
                 black = Font("Inter-Black", 96, 10, "GEISTERFAHR"),
                 sign = Font("BarlowSemiCondensed-SemiBold", 64, 6, "0123456789."),
                 vehicles = Road.Types.Select(t => new Models { list = ModelsFor(t.ModelKey) }).ToArray(),
-                player = Model("Player"),
+                player = PlayerPrefab.Build() ?? Model("Player"),
             };
             art.boldShadow = Shadow(art.bold);
             art.semiShadow = Shadow(art.semi);

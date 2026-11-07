@@ -49,6 +49,11 @@ namespace Geisterfahrer.Game
             Application.targetFrameRate = 60;
             var autoFile = System.IO.Path.Combine(Application.persistentDataPath, "autodrive");
             autodrive = Debug.isDebugBuild && System.IO.File.Exists(autoFile);
+            if (autodrive && (System.DateTime.UtcNow - System.IO.File.GetLastWriteTimeUtc(autoFile)).TotalMinutes > AutodriveMinutes)
+            {
+                System.IO.File.Delete(autoFile); // a forgotten test flag must not turn a normal play into an immortal one (decision 51)
+                autodrive = false;
+            }
             if (autodrive) // the file may hold "density=3" (more traffic, to test fps) and "immortal" (hits never end the run)
             {
                 var text = System.IO.File.ReadAllText(autoFile);
@@ -88,7 +93,7 @@ namespace Geisterfahrer.Game
             road = new GameObject("Road").AddComponent<TrackView>();
             VehicleFx.Init(art.spark);
             float pl = (float)Road.PlayerLength;
-            var playerGo = art.player ? Placeholder.Fit(art.player, pl, "Player", Flipped.Contains("Player"), false)
+            var playerGo = art.player ? Placeholder.Fit(art.player, pl, "Player", Flipped.Contains("Player"), false, PlayerPaintMaterial)
                 : Placeholder.PaintableVehicle("Player", pl, (float)Road.PlayerWidth, 1.3f);
             playerGo.GetComponent<Paintable>().Paint(Placeholder.PlayerRed); // every paint material of the model becomes the red 911
             player = playerGo.transform;
@@ -105,6 +110,7 @@ namespace Geisterfahrer.Game
                 Retry = () => { NewRun(); Go(State.Playing); },
             };
             fx = new Feedback(art.spark);
+            if (autodrive) hud.TestMarker();
 
             engine = Audio(Sounds.Engine(), true);
             scrape = Audio(Sounds.Noise("scrape", 1, false), true);
@@ -192,6 +198,7 @@ namespace Geisterfahrer.Game
         // Dev builds with a file `autodrive` in the app's files folder (adb shell touch /sdcard/Android/data/<id>/files/autodrive):
         // the car drives itself (gas, follows the safe corridor, lifts for curves, replays after a crash), so fps, tunnels
         // and traffic can be checked without hands.
+        const double AutodriveMinutes = 10; // the flag file only counts this long after its last write
         bool autodrive; // set in Awake: Debug.isDebugBuild may not be read in a field initializer
 
         void Autopilot()
@@ -378,7 +385,8 @@ namespace Geisterfahrer.Game
         }
 
         // Downloaded models that were built facing backwards (checked on screen).
-        static readonly HashSet<string> Flipped = new HashSet<string> { "Player" };
+        public const string PlayerPaintMaterial = "11mtl"; // body material of the 991 model; any paint material name works here
+        static readonly HashSet<string> Flipped = new HashSet<string>();
 
         static readonly float[] Shifts = { 0, 70, 110, 150, 195, 240, 285, 400 }; // sound-only gear tops, km/h
 
