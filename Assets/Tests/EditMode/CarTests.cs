@@ -23,17 +23,17 @@ namespace Geisterfahrer.Tests
             return v * 3.6;
         }
 
-        // GDD 2.2 (decisions 53, 54): 165 kW, mu_drive 0.55, CdA 0.30.
-        [Test] public void ZeroTo100() => Assert.AreEqual(5.6, TimeTo(0, 100), 0.3);
-        [Test] public void ZeroTo200() => Assert.AreEqual(17.9, TimeTo(0, 200), 0.3);
-        [Test] public void ZeroTo250() => Assert.AreEqual(30.1, TimeTo(0, 250), 0.3);
-        [Test] public void ZeroTo300() => Assert.AreEqual(54.4, TimeTo(0, 300), 0.3);
-        [Test] public void ZeroTo310() => Assert.AreEqual(63.7, TimeTo(0, 310), 0.6);
-        [Test] public void ZeroTo320() => Assert.AreEqual(77.8, TimeTo(0, 320), 1.0);
-        [Test] public void From100To200() => Assert.AreEqual(12.4, TimeTo(100, 200), 0.3);
-        [Test] public void From100To250() => Assert.AreEqual(24.5, TimeTo(100, 250), 0.3);
-        [Test] public void From100To300() => Assert.AreEqual(48.9, TimeTo(100, 300), 0.3);
-        [Test] public void TopSpeedIs335() => Assert.AreEqual(335.4, Car.TopSpeed(T) * 3.6, 2);
+        // GDD 2.2 (decisions 53, 54, 73, 79): 175 kW, mu_drive 0.55, CdA 0.30.
+        [Test] public void ZeroTo100() => Assert.AreEqual(5.5, TimeTo(0, 100), 0.3);
+        [Test] public void ZeroTo200() => Assert.AreEqual(17.0, TimeTo(0, 200), 0.3);
+        [Test] public void ZeroTo250() => Assert.AreEqual(28.1, TimeTo(0, 250), 0.3);
+        [Test] public void ZeroTo300() => Assert.AreEqual(49.1, TimeTo(0, 300), 0.3);
+        [Test] public void ZeroTo310() => Assert.AreEqual(56.5, TimeTo(0, 310), 0.6);
+        [Test] public void ZeroTo320() => Assert.AreEqual(66.6, TimeTo(0, 320), 1.0);
+        [Test] public void From100To200() => Assert.AreEqual(11.5, TimeTo(100, 200), 0.3);
+        [Test] public void From100To250() => Assert.AreEqual(22.6, TimeTo(100, 250), 0.3);
+        [Test] public void From100To300() => Assert.AreEqual(43.7, TimeTo(100, 300), 0.3);
+        [Test] public void TopSpeedIs342() => Assert.AreEqual(342.5, Car.TopSpeed(T) * 3.6, 2);
 
         static double SpeedAt(double seconds)
         {
@@ -42,11 +42,11 @@ namespace Geisterfahrer.Tests
             return v * 3.6;
         }
 
-        [Test] public void SpeedAfter10s() => Assert.AreEqual(146.8, SpeedAt(10), 2);
-        [Test] public void SpeedAfter20s() => Assert.AreEqual(210.6, SpeedAt(20), 2);
-        [Test] public void SpeedAfter30s() => Assert.AreEqual(249.7, SpeedAt(30), 2);
-        [Test] public void SpeedAfter60s() => Assert.AreEqual(306.4, SpeedAt(60), 2);
-        [Test] public void SpeedAfter120s() => Assert.AreEqual(331.9, SpeedAt(120), 2);
+        [Test] public void SpeedAfter10s() => Assert.AreEqual(150.2, SpeedAt(10), 2);
+        [Test] public void SpeedAfter20s() => Assert.AreEqual(216.1, SpeedAt(20), 2);
+        [Test] public void SpeedAfter30s() => Assert.AreEqual(256.3, SpeedAt(30), 2);
+        [Test] public void SpeedAfter60s() => Assert.AreEqual(313.9, SpeedAt(60), 2);
+        [Test] public void SpeedAfter120s() => Assert.AreEqual(339.2, SpeedAt(120), 2);
 
         [Test]
         public void ThrottleRisesMonotonicallyAndNeverPassesTop()
@@ -98,17 +98,17 @@ namespace Geisterfahrer.Tests
             return v * 3.6 - kmh;
         }
 
-        [Test] public void Scrub300HeldFull() => Assert.AreEqual(-3.2, OneSecond(300, 1, true), 0.5);
-        [Test] public void Scrub300HeldStraight() => Assert.AreEqual(1.2, OneSecond(300, 0, true), 0.5);
-        [Test] public void Scrub200HeldFull() => Assert.AreEqual(0.8, OneSecond(200, 1, true), 0.5);
-        [Test] public void Scrub200HeldStraight() => Assert.AreEqual(5.2, OneSecond(200, 0, true), 0.5);
-        [Test] public void Scrub100HeldFull() => Assert.AreEqual(8.4, OneSecond(100, 1, true), 0.5);
-        [Test] public void Scrub100HeldStraight() => Assert.AreEqual(12.6, OneSecond(100, 0, true), 0.5);
+        [Test] public void Scrub300HeldFull() => Assert.AreEqual(-2.9, OneSecond(300, 1, true), 0.5);
+        [Test] public void Scrub300HeldStraight() => Assert.AreEqual(1.5, OneSecond(300, 0, true), 0.5);
+        [Test] public void Scrub200HeldFull() => Assert.AreEqual(1.2, OneSecond(200, 1, true), 0.5);
+        [Test] public void Scrub200HeldStraight() => Assert.AreEqual(5.6, OneSecond(200, 0, true), 0.5);
+        [Test] public void Scrub100HeldFull() => Assert.AreEqual(9.2, OneSecond(100, 1, true), 0.5);
+        [Test] public void Scrub100HeldStraight() => Assert.AreEqual(13.4, OneSecond(100, 0, true), 0.5);
 
-        [Test] public void CeilingDownhill4() => Assert.AreEqual(375.1, Car.TopSpeed(T, 0, -0.04) * 3.6, 2);
-        [Test] public void CeilingDownhill2() => Assert.AreEqual(355.3, Car.TopSpeed(T, 0, -0.02) * 3.6, 2);
-        [Test] public void CeilingUphill2() => Assert.AreEqual(315.5, Car.TopSpeed(T, 0, 0.02) * 3.6, 2);
-        [Test] public void CeilingUphill4() => Assert.AreEqual(296.0, Car.TopSpeed(T, 0, 0.04) * 3.6, 2);
+        [Test] public void CeilingDownhill4() => Assert.AreEqual(381.5, Car.TopSpeed(T, 0, -0.04) * 3.6, 2);
+        [Test] public void CeilingDownhill2() => Assert.AreEqual(362.0, Car.TopSpeed(T, 0, -0.02) * 3.6, 2);
+        [Test] public void CeilingUphill2() => Assert.AreEqual(323.0, Car.TopSpeed(T, 0, 0.02) * 3.6, 2);
+        [Test] public void CeilingUphill4() => Assert.AreEqual(303.8, Car.TopSpeed(T, 0, 0.04) * 3.6, 2);
 
         [Test]
         public void CoastDownhill4SettlesNear29()

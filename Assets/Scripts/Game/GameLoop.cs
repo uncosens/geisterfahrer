@@ -42,7 +42,7 @@ namespace Geisterfahrer.Game
         int lastHits, seed;
 
         // Camera follows speed (decision 55): at CamFullKmh it is CamLower m lower and CamCloser m closer, looking CamPitchDown degrees further down.
-        const float CamHeight = 2.7f, CamLower = 0.5f, CamCloser = 1f, CamPitchDown = 3f, CamFullKmh = 300, CamLag = 0.6f; // metres, degrees, km/h, seconds
+        const float CamHeight = 2.7f, CamLower = 0.5f, CamCloser = 1f, CamPitchDown = 4.5f, CamFullKmh = 300, CamLag = 0.6f; // metres, degrees, km/h, seconds
         static readonly Color Sky = Placeholder.Hex(0xC9D6E2);
 
         void Awake()

@@ -92,9 +92,10 @@ namespace Geisterfahrer.Game
 
             // Start
             start = Panel("Panel_Start");
-            var title = Label(start.transform, Center, Center, new Vector2(0, 190), new Vector2(1400, 160), black, null, 128, TextAlignmentOptions.Center, Color.white);
-            title.text = "GEISTERFAHRER";
-            title.characterSpacing = 6;
+            // The wordmark of the logo (docs/design/logo) replaces the text title; about 1000 reference px wide.
+            var wm = Resources.Load<Texture2D>("Icons/wordmark");
+            var title = Place(start.transform, "Title", Center, Center, new Vector2(0, 190), new Vector2(1000, wm ? 1000f * wm.height / wm.width : 130)).gameObject.AddComponent<RawImage>();
+            title.texture = wm; title.raycastTarget = false;
             startBestSpeed = BestGroup(start.transform, new Vector2(-260, 10));
             startBestDist = BestGroup(start.transform, new Vector2(260, 10));
             Btn(start.transform, new Vector2(0, -230), 208, "play", 96, true, () => Click(Play, false));

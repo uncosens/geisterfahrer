@@ -5,6 +5,7 @@ using Geisterfahrer.Core;
 using Geisterfahrer.Game;
 using TMPro;
 using UnityEditor;
+using UnityEditor.Android;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
@@ -253,6 +254,37 @@ namespace Geisterfahrer.Editor
             }
         }
 
+        // Logo "Frontal" (docs/design/logo): adaptive icon layers, round and legacy from the 1024 master, themed (monochrome) layer.
+        static void SetIcons()
+        {
+            Texture2D Tex(string name)
+            {
+                var path = $"Assets/Icon/{name}.png";
+                var ti = (TextureImporter)AssetImporter.GetAtPath(path);
+                if (ti.textureType != TextureImporterType.Default || ti.mipmapEnabled || ti.textureCompression != TextureImporterCompression.Uncompressed)
+                {
+                    ti.textureType = TextureImporterType.Default; ti.mipmapEnabled = false; ti.alphaIsTransparency = true; ti.textureCompression = TextureImporterCompression.Uncompressed;
+                    ti.SaveAndReimport();
+                }
+                return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+            }
+            var master = Tex("icon-1024");
+            void Fill(PlatformIconKind kind, params Texture2D[] layers)
+            {
+                var icons = PlayerSettings.GetPlatformIcons(BuildTargetGroup.Android, kind);
+                foreach (var icon in icons) for (int i = 0; i < layers.Length; i++) icon.SetTexture(layers[i], i);
+                PlayerSettings.SetPlatformIcons(BuildTargetGroup.Android, kind, icons);
+            }
+            Fill(AndroidPlatformIconKind.Adaptive, Tex("icon-background-432"), Tex("icon-foreground-432"));
+            Fill(AndroidPlatformIconKind.Round, master);
+            Fill(AndroidPlatformIconKind.Legacy, master);
+            // Themed (monochrome) layer: only where this Unity version gives the adaptive icon a third layer.
+            var ad = PlayerSettings.GetPlatformIcons(BuildTargetGroup.Android, AndroidPlatformIconKind.Adaptive);
+            foreach (var icon in ad) if (icon.maxLayerCount > 2) icon.SetTexture(Tex("icon-monochrome-432"), 2);
+            PlayerSettings.SetPlatformIcons(BuildTargetGroup.Android, AndroidPlatformIconKind.Adaptive, ad);
+            Debug.Log("ICONS adaptive layers " + ad.Max(i => i.maxLayerCount));
+        }
+
         public static void BuildAndroid()
         {
             bool release = Array.IndexOf(Environment.GetCommandLineArgs(), "-release") >= 0;
@@ -261,8 +293,9 @@ namespace Geisterfahrer.Editor
             PlayerSettings.companyName = "uncosens";
             PlayerSettings.productName = "Geisterfahrer";
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.uncosens.geisterfahrer");
-            PlayerSettings.bundleVersion = "0.2.0";
-            PlayerSettings.Android.bundleVersionCode = 2;
+            PlayerSettings.bundleVersion = "0.1.0";
+            PlayerSettings.Android.bundleVersionCode = 1;
+            SetIcons();
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             // ARM64 only: Unity 6.3 refuses Android x86_64 (deprecated), so the emulator runs it through ARM translation.
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
