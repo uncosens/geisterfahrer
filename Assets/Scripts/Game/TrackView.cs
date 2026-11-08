@@ -7,7 +7,7 @@ namespace Geisterfahrer.Game
 {
     // Draws the procedural road (GDD 6) along the Track's centre line in 100 m chunks, about 1.5 km ahead.
     // Core stays in road space (s, d); Place() is the only road-to-world mapping.
-    public class TrackView : MonoBehaviour
+    public partial class TrackView : MonoBehaviour
     {
         const float ChunkLen = 100, Ahead = 1500, Behind = 100, Rail = (float)Road.RailX, Lanes = (float)(Road.LaneCount * Road.LaneWidth / 2);
         // Tunnel bore: vertical walls to Spring on the rail lines, then a half-ellipse vault of rise VaultH (GDD 6.4); earth Cover over it.
@@ -18,7 +18,7 @@ namespace Geisterfahrer.Game
         // Underground box (decision 46): inside half-width, clear height, roof slab thickness (top at Track.UgRoof).
         const float BoxX = Rail + 0.5f, BoxH = 6.0f;
         static readonly float[] Bands = { WallX, 14, 20, 28, 40, 55, 75, 100, 130, 400 }; // |d| edges of the hill grid
-        enum M { Asphalt, Paint, Steel, Grass, White, Black, Concrete, SignBack, Lamp, Field0, Field1, Field2, Field3, Rock, Tree, Trunk, Roof, Blue, Red, Count }
+        enum M { Asphalt, Paint, Steel, Grass, White, Black, Concrete, SignBack, Lamp, Field0, Field1, Field2, Field3, Rock, Tree, Trunk, Roof, Blue, Red, Facade0, Facade1, Facade2, Facade3, Count }
 
         Track track;
         Material[] mats;
@@ -50,6 +50,8 @@ namespace Geisterfahrer.Game
             mats[(int)M.Roof] = Placeholder.Mat(Placeholder.Hex(0x8A4B3A), 0, 0.1f);
             mats[(int)M.Blue] = Placeholder.Mat(Placeholder.Hex(0x1C5AA8), 0, 0.3f);
             mats[(int)M.Red] = Placeholder.Mat(Placeholder.Hex(0xC4262E), 0, 0.3f);
+            for (int i = 0; i < 4; i++) mats[(int)M.Facade0 + i] = FacadeMat(i);
+            sceneryOf.Clear();
             int[] fields = { 0x6F8A3E, 0xC8B46A, 0x8A7556, 0x7E9A4A };
             for (int i = 0; i < 4; i++) mats[(int)M.Field0 + i] = Placeholder.Mat(Dim(Placeholder.Hex(fields[i]), 0.85f), 0, 0.05f);
             foreach (var c in chunks.Values) Destroy(c);
@@ -101,12 +103,14 @@ namespace Geisterfahrer.Game
             foreach (var k in drop) { chunks[k].SetActive(false); spare.Push(chunks[k]); chunks.Remove(k); }
             for (int k = Mathf.Max(-1, first); k <= last; k++) // chunk -1: road behind the start, seen at standstill
                 if (!chunks.ContainsKey(k) && (k + 1) * ChunkLen < track.Generated - 10) chunks[k] = Build(k);
+            UpdateScenery(s);
         }
 
         GameObject Build(int index)
         {
             var go = spare.Count > 0 ? spare.Pop() : NewChunk();
             go.SetActive(true);
+            ResetScenery(go);
             foreach (var t in go.GetComponentsInChildren<TMP_Text>(true)) Destroy(t.transform.parent.gameObject); // posts and signs of the chunk's previous use
             var b = new Builder();
             double s0 = index * ChunkLen, s1 = s0 + ChunkLen;
@@ -426,6 +430,7 @@ namespace Geisterfahrer.Game
             var mesh = new Mesh { indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
             go.GetComponent<MeshFilter>().sharedMesh = mesh;
             go.GetComponent<MeshRenderer>().sharedMaterials = mats;
+            Child(go, "Mass"); Child(go, "Detail");
             return go;
         }
 
@@ -471,7 +476,7 @@ namespace Geisterfahrer.Game
         }
 
         // Collects quads and boxes in road space into one mesh with a submesh per material.
-        class Builder
+        partial class Builder
         {
             readonly List<Vector3> v = new List<Vector3>();
             readonly List<Vector2> uv = new List<Vector2>();

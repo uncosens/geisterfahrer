@@ -21,7 +21,9 @@ namespace Geisterfahrer.Core
         readonly Random rng;
         double nextOverpass, structuresDone;
 
-        public Track(int seed) { rng = new Random(seed); nextOverpass = 600 + rng.NextDouble() * 1000; }
+        public readonly Zones Zones;
+
+        public Track(int seed) { rng = new Random(seed); Zones = new Zones(seed); nextOverpass = 600 + rng.NextDouble() * 1000; }
 
         // Test helper: one curvature and grade forever.
         public static Track Constant(double curvature, double grade)
