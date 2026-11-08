@@ -52,6 +52,16 @@ Dev builds log `PERF fps … worst … ms` every 5 s: `adb -s <serial> logcat -s
 
 Controls: left half = steer (drag from where you touch), right half = accelerate. Editor: A/D or arrows, W or Space, Esc/P pause, Enter play/retry.
 
+## Checked (2026-11-08, v0.2.0 traffic variants)
+
+| What | Where | Result |
+|---|---|---|
+| 105 EditMode tests: class table, 30 variants, bike head-on at 100 and 300 km/h, game over for every other class, bike chain rule and spacing, spawn distance, catch-up and hiding gaps | batch mode | all pass |
+| Contact sheets of all 30 variants (rear, front, side), forced-colour check of the paint rules | batch render (`docs/dev/shots/veh-sheet-*.png`) | look right; see decisions 97-102 for dropped models |
+| Release APK `Builds/Android/geisterfahrer.apk`, 135,804,279 bytes, versionCode 2 / 0.2.0, arm64-v8a, `zipalign -c -P 16` ok, permissions VIBRATE only (INTERNET removed by `Assets/Plugins/Android/AndroidManifest.xml`) | build machine | built |
+
+Not checked: no device or emulator run of this build (fps with 12-25 mixed vehicles, camera at the new +50 % values, pool prewarm time of 30 variants, ambulance and police on the road), bike hit feedback by eye, the delivery van's side texture up close.
+
 ## Checked (2026-11-07, playtest changes, GDD v0.5)
 
 | What | Where | Result |
