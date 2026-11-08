@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Urban kit preview</title>
+<style>
+  :root { --bg:#EEF1F4; --ink:#1B2530; --mute:#5B6773; --line:#CBD3DB; --card:#FFFFFF; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#14181D; --ink:#E6EBF0; --mute:#97A3AF; --line:#2B343D; --card:#1B2128; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui, "Segoe UI", sans-serif; }
+  main { max-width:1180px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:24px; margin:0 0 4px; }
+  h2 { font-size:18px; margin:36px 0 8px; }
+  p.lead { color:var(--mute); margin:0 0 16px; max-width:70ch; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr)); gap:16px; }
+  figure { margin:0; background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  figure svg { display:block; width:100%; height:auto; }
+  figcaption { padding:10px 14px 12px; font-size:13.5px; color:var(--mute); }
+  figcaption b { color:var(--ink); }
+  .sw { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; }
+  .sw div { border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--card); font-size:12.5px; }
+  .sw i { display:block; height:34px; }
+  .sw span { display:block; padding:4px 8px; }
+  .note { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; font-size:13.5px; color:var(--mute); }
+  table { border-collapse:collapse; width:100%; background:var(--card); font-size:13.5px; }
+  th, td { border:1px solid var(--line); padding:6px 10px; text-align:left; }
+  th { background:color-mix(in srgb, var(--card) 85%, var(--ink) 15%); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Urban kit preview</h1>
+  <p class="lead">Mock frames from the driver's chase view (camera 6.5 m behind the car, 2.4 m up, 342 km/h class speed). Drawn by a small script from the numbers in <code>urban-spec.md</code>: same sun (behind-left), same fog (#C9D6E2, 300 m to 1,600 m). Not a render of the game. Facade colours follow GDD 6.8 F8 (mid to dark, no flat white or light grey). The outer side (buildings, noise walls) is on the player's left, the median and the other carriageway on the right.</p>
+
+  <div class="grid" id="frames"></div>
+
+  <h2>Facade palette</h2>
+  <p class="lead">No bright white (every channel at most #BE), and no red or orange hues that could read like the red car. Muted, slightly warm or cool greys.</p>
+  <div class="sw" id="pal"></div>
+
+  <h2>Facade tile array (8 slices, generated in code)</h2>
+  <p class="lead">Each slice is 256 × 256 px: 2 bays × 2 floors, tiled by world metres. Alpha holds smoothness (walls 0.1, glass 0.6 to 0.8). Slice 7 is a flat roof and solid colour tile.</p>
+  <svg id="atlas" viewBox="0 0 1040 280" style="width:100%;height:auto;background:var(--card);border:1px solid var(--line);border-radius:10px"></svg>
+
+  <h2>Budget at a glance (GDD 6.10 caps, per 100 m chunk, both sides)</h2>
+  <table>
+    <tr><th>Distance</th><th>Cap (all scenery)</th><th>Typical city chunk</th><th>Draw calls (whole frame)</th></tr>
+    <tr><td>0–400 m</td><td>≤ 8,000 tris</td><td>about 5,500</td><td rowspan="3">≤ 60, ≤ 24 meshes, ≤ 6 materials</td></tr>
+    <tr><td>400–900 m</td><td>≤ 3,000 tris</td><td>about 2,000</td></tr>
+    <tr><td>900–1,500 m</td><td>≤ 1,000 tris</td><td>about 700</td></tr>
+  </table>
+  <p class="note" style="margin-top:12px">Whole frame at most about 53k triangles (GDD C1: 60k). Design targets, not measured on the tablet.</p>
+</main>
+
+<script>
+const W = 960, H = 540, F = 640, HY = 232, CAMY = 2.4, CX = 1.9, NEAR = 3, FOG = '#C9D6E2';
+const OUT_RAIL = -9, MED_RAIL = 9, FAR_IN = 13, FAR_OUT = 29.5;           // metres from the lane-2 centre line frame (see spec 1.1)
+
+// ---------- helpers ----------
+const rng = seed => { let a = seed; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; };
+const h2 = c => [1, 3, 5].map(i => parseInt(c.substr(i, 2), 16));
+const rgb = a => '#' + a.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
+const mix = (a, b, t) => { const A = h2(a), B = h2(b); return rgb(A.map((v, i) => v + (B[i] - v) * t)); };
+const sh = (c, k) => rgb(h2(c).map(v => v * k));
+const fogT = z => Math.min(1, Math.max(0, (z - 300) / 1300)) * 0.96;
+const fc = (c, z) => mix(c, FOG, fogT(z));
+const px = (x, z) => (W / 2 + F * (x - CX) / Math.max(z, NEAR)).toFixed(1);
+const py = (y, z) => (HY + F * (CAMY - y) / Math.max(z, NEAR)).toFixed(1);
+const pt = (x, y, z) => px(x, z) + ',' + py(y, z);
+const poly = (pts, fill, extra = '') => `<polygon points="${pts.map(p => pt(...p)).join(' ')}" fill="${fill}" ${extra}/>`;
+const lerp = (a, b, t) => a + (b - a) * t;
+
+// ---------- styles ----------
+const ST = {
+  res:    { wall: '#B8B2A3', glass: '#3E4A57', bay: 3.6, fh: 3.2, ww: 1.7, wh: 1.5, sill: 0.9, roof: '#6E7174' },
+  resB:   { wall: '#AEB5A0', glass: '#3E4A57', bay: 3.6, fh: 3.2, ww: 1.7, wh: 1.5, sill: 0.9, roof: '#6E7174' },
+  resC:   { wall: '#A3B0B9', glass: '#3E4A57', bay: 3.6, fh: 3.2, ww: 1.7, wh: 1.5, sill: 0.9, roof: '#6E7174' },
+  panel:  { wall: '#8E9093', glass: '#434C57', bay: 3.6, fh: 3.2, ww: 1.7, wh: 1.5, sill: 0.9, roof: '#6A6D70' },
+  office: { wall: '#4A5058', glass: '#7898B6', bay: 1.8, fh: 3.2, ww: 1.7, wh: 1.9, sill: 0.55, roof: '#6A6D70' },
+  officeG:{ wall: '#44504F', glass: '#6A9690', bay: 1.8, fh: 3.2, ww: 1.7, wh: 1.9, sill: 0.55, roof: '#6A6D70' },
+  officeD:{ wall: '#3E444B', glass: '#6682A0', bay: 1.8, fh: 3.2, ww: 1.7, wh: 1.9, sill: 0.55, roof: '#6A6D70' },
+  mixed:  { wall: '#A19470', glass: '#3E4A57', bay: 3.6, fh: 3.2, ww: 1.6, wh: 1.5, sill: 0.9, roof: '#6E7174' },
+  clinker:{ wall: '#5F5750', glass: '#4A525C', bay: 3.6, fh: 3.2, ww: 1.6, wh: 1.5, sill: 0.9, roof: '#5C5F63' },
+  shed:   { wall: '#7F909A', glass: '#4B5560', bay: 6, fh: 9, ww: 5.4, wh: 0.9, sill: 6.2, roof: '#9AA3A6' },
+  shedB:  { wall: '#9A9E9C', glass: '#4B5560', bay: 6, fh: 9, ww: 5.4, wh: 0.9, sill: 6.2, roof: '#9AA3A6' },
+  shedC:  { wall: '#566F5F', glass: '#4B5560', bay: 6, fh: 9, ww: 5.4, wh: 0.9, sill: 6.2, roof: '#9AA3A6' },
+  house:  { wall: '#B5AE9A', glass: '#3E4A57', bay: 3.6, fh: 3.2, ww: 1.4, wh: 1.4, sill: 0.9, roof: '#4A4D52' },
+  houseB: { wall: '#A5B09C', glass: '#3E4A57', bay: 3.6, fh: 3.2, ww: 1.4, wh: 1.4, sill: 0.9, roof: '#5C5A57' },
+  houseC: { wall: '#BDB594', glass: '#3E4A57', bay: 3.6, fh: 3.2, ww: 1.4, wh: 1.4, sill: 0.9, roof: '#4A4D52' },
+};
+const CONC = '#7A7C80';
+
+// ---------- scene ----------
+class Sc {
+  constructor(o) { this.o = o; this.it = []; this.base = ''; this.r = rng(o.seed || 1); }
+  add(z, s) { if (s) this.it.push([z, s]); }
+  rnd(a, b) { return a + (b - a) * this.r(); }
+  pick(arr) { return arr[Math.floor(this.r() * arr.length)]; }
+}
+
+function winPaths(plane, a, b, y0, nf, st, at, k, fogZ) {
+  const nb = Math.max(1, Math.round((b - a) / st.bay)), bw = (b - a) / nb;
+  const bands = {};
+  const ww = Math.min(st.ww, bw - 0.2);
+  for (let f = 0; f < nf; f++) for (let i = 0; i < nb; i++) {
+    const u0 = a + i * bw + (bw - ww) / 2, u1 = u0 + ww, v0 = y0 + f * st.fh + st.sill, v1 = v0 + st.wh;
+    const zc = plane === 'x' ? (u0 + u1) / 2 : at;
+    if (zc < NEAR + 0.5) continue;
+    if (F * ww / zc < 2.2) continue;
+    const P = plane === 'x' ? [[at, v0, u0], [at, v0, u1], [at, v1, u1], [at, v1, u0]] : [[u0, v0, at], [u1, v0, at], [u1, v1, at], [u0, v1, at]];
+    const S = P.map(p => [parseFloat(px(p[0], p[2])), parseFloat(py(p[1], p[2]))]);
+    if (S.every(s => s[0] < -40) || S.every(s => s[0] > W + 40) || S.every(s => s[1] < -40) || S.every(s => s[1] > H + 40)) continue;
+    const band = Math.floor(zc / 120);
+    bands[band] = (bands[band] || '') + 'M' + S.map(s => s[0] + ' ' + s[1]).join('L') + 'Z';
+  }
+  let out = '';
+  for (const band in bands) out += `<path d="${bands[band]}" fill="${fc(sh(st.glass, k), (+band + 0.5) * 120)}"/>`;
+  return out;
+}
+
+function faceTone(st, k, zNear, nf, len) {
+  const cov = Math.min(1, (st.ww * st.wh) / (st.bay * st.fh));
+  const cell = F * st.ww / Math.max(zNear, NEAR);
+  const blend = cov * Math.min(1, Math.max(0, 1.3 - cell / 5)) * 0.85;
+  return mix(sh(st.wall, k), sh(st.glass, k), blend);
+}
+
+function box(s, x0, x1, y0, y1, z0, z1, col, o = {}) {
+  if (z1 <= NEAR + 0.2) return;
+  const zc = Math.max(z0, NEAR + 0.2);
+  const L = x1 < CX, Rr = x0 > CX;
+  const st = o.st, nf = o.nf || 1;
+  let out = '';
+  const zf = zc + Math.min(z1 - zc, 40) / 2;
+  if (L || Rr) {
+    const xs = L ? x1 : x0, k = L ? 0.74 : 1.0;
+    const base = st ? faceTone(st, k, zc, nf) : sh(col, k);
+    out += poly([[xs, y0, zc], [xs, y0, z1], [xs, y1, z1], [xs, y1, zc]], fc(base, zf));
+    if (st && o.win !== false) out += winPaths('x', zc, z1, y0, nf, st, xs, k);
+  }
+  if (z0 > NEAR + 0.2) {
+    const base = st ? faceTone(st, 0.92, z0, nf) : sh(col, 0.92);
+    out += poly([[x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0]], fc(base, z0));
+    if (st && o.win !== false) out += winPaths('z', x0, x1, y0, nf, st, z0, 0.92);
+  }
+  if (y1 < CAMY) out += poly([[x0, y1, zc], [x1, y1, zc], [x1, y1, z1], [x0, y1, z1]], fc(sh(o.top || col, 1.06), zf));
+  if (y0 > CAMY) out += poly([[x0, y0, zc], [x1, y0, zc], [x1, y0, z1], [x0, y0, z1]], fc(sh(o.under || col, 0.55), zf));
+  s.add(zc, out);
+}
+
+function xr(side, setback, depth) {
+  return side < 0 ? [OUT_RAIL - setback - depth, OUT_RAIL - setback] : [FAR_OUT + setback, FAR_OUT + setback + depth];
+}
+
+function building(s, side, setback, z0, len, depth, floors, st, o = {}) {
+  const [x0, x1] = xr(side, setback, depth);
+  const by = o.baseY || 0, y1 = by + floors * st.fh;
+  if (o.gable) {
+    const eave = by + floors * st.fh, rh = depth * 0.30, xm = (x0 + x1) / 2;
+    box(s, x0, x1, by, eave, z0, z0 + len, st.wall, { st, nf: floors });
+    const zc = Math.max(z0, NEAR + 0.2);
+    if (z0 + len <= zc) return;
+    const roofK = side < 0 ? 0.80 : 1.05;
+    const xe = side < 0 ? x1 : x0;
+    let out = poly([[xe, eave, zc], [xe, eave, z0 + len], [xm, eave + rh, z0 + len], [xm, eave + rh, zc]], fc(sh(st.roof, roofK), zc + 20));
+    if (z0 > NEAR + 0.2) out += poly([[x0, eave, z0], [x1, eave, z0], [xm, eave + rh, z0]], fc(sh(st.wall, 0.92), z0));
+    s.add(zc - 0.01, out);
+    return;
+  }
+  box(s, x0, x1, by, y1, z0, z0 + len, st.wall, { st, nf: floors, top: st.roof });
+  if (floors >= 6 && z0 > NEAR + 2) {                        // roof plant box
+    const bx = (x0 + x1) / 2, pz = z0 + len * 0.35;
+    box(s, bx - 3, bx + 3, y1, y1 + 2.4, pz, pz + 5, '#9A9DA0');
+  }
+}
+
+function tree(s, x, z, h, col, o = {}) {
+  if (z < NEAR + 1) return;
+  const k = F / z, X = parseFloat(px(x, z)), Yb = parseFloat(py(0, z)), Yc = parseFloat(py(h * 0.62, z));
+  if (X < -80 || X > W + 80) return;
+  const rx = h * (o.wide || 0.30) * k, ry = h * 0.40 * k;
+  const c = fc(col, z);
+  s.add(z, `<rect x="${(X - 0.04 * h * k).toFixed(1)}" y="${Yc}" width="${(0.08 * h * k).toFixed(1)}" height="${(Yb - Yc).toFixed(1)}" fill="${fc('#4A3F36', z)}"/>` +
+    (o.fir ? `<polygon points="${X},${py(h, z)} ${(X - rx).toFixed(1)},${(parseFloat(py(h * 0.12, z))).toFixed(1)} ${(X + rx).toFixed(1)},${(parseFloat(py(h * 0.12, z))).toFixed(1)}" fill="${c}"/>`
+            : `<ellipse cx="${X}" cy="${Yc}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="${c}"/>`));
+}
+
+function lamp(s, x, z, h, dbl) {
+  if (z < NEAR + 1) return;
+  const k = F / z, X = parseFloat(px(x, z)), Yb = parseFloat(py(0, z)), Yt = parseFloat(py(h, z));
+  const col = fc('#9AA0A5', z), arm = 2.4 * k, sw = Math.max(0.7, 0.28 * k);
+  let o = `<line x1="${X}" y1="${Yb}" x2="${X}" y2="${Yt}" stroke="${col}" stroke-width="${sw.toFixed(2)}"/>`;
+  o += `<line x1="${(X - arm).toFixed(1)}" y1="${Yt}" x2="${(X + (dbl ? arm : 0)).toFixed(1)}" y2="${Yt}" stroke="${col}" stroke-width="${(sw * 0.8).toFixed(2)}"/>`;
+  o += `<ellipse cx="${(X - arm).toFixed(1)}" cy="${Yt}" rx="${Math.max(0.8, 0.5 * k).toFixed(1)}" ry="${Math.max(0.5, 0.18 * k).toFixed(1)}" fill="${fc('#D8DADC', z)}"/>`;
+  if (dbl) o += `<ellipse cx="${(X + arm).toFixed(1)}" cy="${Yt}" rx="${Math.max(0.8, 0.5 * k).toFixed(1)}" ry="${Math.max(0.5, 0.18 * k).toFixed(1)}" fill="${fc('#D8DADC', z)}"/>`;
+  s.add(z, o);
+}
+
+function gantry(s, z) {
+  const g = '#8B9097';
+  box(s, -10.9, -10.3, 0, 7.2, z, z + 0.6, g);
+  box(s, 10.5, 11.1, 0, 7.2, z, z + 0.6, g);
+  box(s, -10.9, 11.1, 6.0, 7.2, z, z + 0.7, g);
+  box(s, -6.8, -0.6, 7.2, 9.4, z + 0.1, z + 0.3, '#8B9097', { top: g });
+  box(s, 2.2, 8.2, 7.2, 9.4, z + 0.1, z + 0.3, '#8B9097', { top: g });
+}
+
+function noiseWall(s, side, z0, z1, h, kind) {
+  const x = side < 0 ? OUT_RAIL - 2.5 : MED_RAIL + 1.2;
+  const cols = { glass: '#A9B8C2', wood: '#7C8068', conc: '#85888C' };
+  for (let z = Math.max(z0, NEAR + 1); z < z1; z += 25) {
+    box(s, x - 0.2, x + 0.2, 0, h, z, Math.min(z + 25, z1), cols[kind]);
+    if (z < 160) for (let p = z - (z % 5) + 5; p < Math.min(z + 25, z1); p += 5)
+      s.add(p - 0.01, `<line x1="${px(x + 0.2, p)}" y1="${py(0, p)}" x2="${px(x + 0.2, p)}" y2="${py(h, p)}" stroke="${fc('#5E6469', p)}" stroke-width="${Math.max(0.6, 0.15 * F / p).toFixed(2)}"/>`);
+  }
+  // wall top cap
+}
+
+function pylon(s, x, z, h) {
+  const k = F / z, X = parseFloat(px(x, z)), Yb = parseFloat(py(0, z)), Yt = parseFloat(py(h, z));
+  const w0 = 0.2 * h * k, w1 = 0.04 * h * k, c = fc('#8F989A', z), sw = Math.max(0.6, 0.12 * k * 3);
+  let o = `<polyline points="${X - w0},${Yb} ${X - w1},${Yt} ${X + w1},${Yt} ${X + w0},${Yb}" fill="none" stroke="${c}" stroke-width="${sw.toFixed(2)}"/>`;
+  for (const f of [0.70, 0.80, 0.90]) {
+    const y = parseFloat(py(h * f, z)), a = lerp(w1, w0, 1 - (f - 0.0)) * 0 + (w1 + (w0 - w1) * (1 - f) / 1) * (1 + 0.0), arm = h * (f === 0.70 ? 0.20 : f === 0.80 ? 0.17 : 0.14) * k;
+    o += `<line x1="${X - arm}" y1="${y}" x2="${X + arm}" y2="${y}" stroke="${c}" stroke-width="${sw.toFixed(2)}"/>`;
+  }
+  s.add(z, o);
+}
+
+function silo(s, x, z, r, h, col) {
+  if (z < NEAR + 1) return;
+  const k = F / z, X = parseFloat(px(x, z)), Yb = parseFloat(py(0, z)), Yt = parseFloat(py(h, z)), rr = r * k;
+  const side = x < CX ? 0.78 : 1.0;
+  s.add(z, `<rect x="${(X - rr).toFixed(1)}" y="${Yt}" width="${(rr * 2).toFixed(1)}" height="${(Yb - Yt).toFixed(1)}" fill="${fc(sh(col, side), z)}"/>` +
+    `<rect x="${(X + (x < CX ? 0 : -rr)).toFixed(1)}" y="${Yt}" width="${rr.toFixed(1)}" height="${(Yb - Yt).toFixed(1)}" fill="${fc(sh(col, side * 0.88), z)}"/>` +
+    `<ellipse cx="${X}" cy="${Yt}" rx="${rr.toFixed(1)}" ry="${(rr * 0.18).toFixed(1)}" fill="${fc(sh(col, 1.08), z)}"/>`);
+}
+
+function quad3(s, a, b, y0, y1, col, extra = '') {            // a,b = [x,z] ends of a vertical panel
+  s.add(Math.min(a[1], b[1]), poly([[a[0], y0, a[1]], [b[0], y0, b[1]], [b[0], y1, b[1]], [a[0], y1, a[1]]], col, extra));
+}
+
+function billboard(s, x, z, w, h, front, adCol) {
+  const dx = front ? w * 0.80 : w * 0.80, dz = front ? w * 0.60 : -w * 0.60;
+  const a = [x, z], b = [x + (front ? dx : -dx), z + dz];
+  for (const p of [a, b]) box(s, p[0] - 0.3, p[0] + 0.3, 0, 6.2, p[1], p[1] + 0.6, '#8B9097');
+  quad3(s, a, b, 6, 6 + h, fc(front ? adCol[0] : '#8B9097', z));
+  if (front) quad3(s, [a[0] + (b[0] - a[0]) * 0.1, a[1] + (b[1] - a[1]) * 0.1], [a[0] + (b[0] - a[0]) * 0.55, a[1] + (b[1] - a[1]) * 0.55], 6 + h * 0.2, 6 + h * 0.8, fc(adCol[1], z));
+}
+
+function car(s, lane, z, col, o = {}) {                       // oncoming car, we see its front
+  const x = [-5.6, -1.9, 1.9, 5.6][lane], w = o.w || 1.85, len = o.len || 4.5, hh = o.h || 1.45;
+  box(s, x - w / 2, x + w / 2, 0.15, hh, z, z + len, col);
+  const zz = z - 0.001, y0 = hh * 0.62, y1 = hh * 0.92;
+  s.add(z - 0.01, poly([[x - w * 0.42, y0, zz], [x + w * 0.42, y0, zz], [x + w * 0.36, y1, zz], [x - w * 0.36, y1, zz]], fc('#1A1F26', z)) +
+    poly([[x - w * 0.46, 0.55, zz], [x - w * 0.30, 0.55, zz], [x - w * 0.30, 0.72, zz], [x - w * 0.46, 0.72, zz]], '#FFF6E0') +
+    poly([[x + w * 0.30, 0.55, zz], [x + w * 0.46, 0.55, zz], [x + w * 0.46, 0.72, zz], [x + w * 0.30, 0.72, zz]], '#FFF6E0'));
+}
+
+function playerCar(s) {
+  const x = CX, w = 1.85, z0 = 6.5, z1 = 11;
+  box(s, x - w / 2, x + w / 2, 0.15, 1.15, z0, z1, '#C8102E');
+  s.add(z0 - 0.02, poly([[x - w * 0.40, 0.78, z0], [x + w * 0.40, 0.78, z0], [x + w * 0.34, 1.06, z0], [x - w * 0.34, 1.06, z0]], '#1A1F26') +
+    poly([[x - w * 0.48, 0.60, z0], [x - w * 0.22, 0.60, z0], [x - w * 0.22, 0.72, z0], [x - w * 0.48, 0.72, z0]], '#B3262B') +
+    poly([[x + w * 0.22, 0.60, z0], [x + w * 0.48, 0.60, z0], [x + w * 0.48, 0.72, z0], [x + w * 0.22, 0.72, z0]], '#B3262B'));
+}
+
+function bridge(s, z, len, deckTop, o = {}) {
+  const xa = o.x0 === undefined ? -60 : o.x0, xb = o.x1 === undefined ? 70 : o.x1;
+  const th = o.th || 1.5, par = 1.1, z1 = z + len;
+  box(s, xa, xb, deckTop - th, deckTop, z, z1, CONC, { under: '#7A7C80' });
+  box(s, xa, xb, deckTop, deckTop + par, z, z + 0.4, '#6C6E72');
+  for (const px_ of (o.piers || [-12, 12])) {
+    const h = deckTop - th;
+    box(s, px_ - 0.9, px_ + 0.9, 0, h, z + len * 0.25, z + len * 0.25 + 1.8, CONC);
+    box(s, px_ - 1.7, px_ + 1.7, h - 1.1, h, z + len * 0.2, z + len * 0.2 + 2.6, '#707276');
+  }
+}
+
+function retWall(s, side, z0, z1, h, o = {}) {
+  const x = side < 0 ? OUT_RAIL - 1.5 : MED_RAIL + 1.5;
+  for (let z = Math.max(z0, NEAR + 1); z < z1; z += 20) {
+    const t = Math.floor(z / 20) % 2 ? 0.97 : 1.03;
+    box(s, x - 0.5, x + 0.5, 0, h, z, Math.min(z + 20, z1), sh(CONC, t));
+    s.add(z + 0.001, poly([[x + (side < 0 ? 0.5 : -0.5), h - 0.3, z], [x + (side < 0 ? 0.5 : -0.5), h - 0.3, Math.min(z + 20, z1)], [x + (side < 0 ? 0.5 : -0.5), h, Math.min(z + 20, z1)], [x + (side < 0 ? 0.5 : -0.5), h, z]], fc('#6C6E72', z + 8)));
+  }
+  box(s, x - 0.5, x + 0.5, h, h + 1.1, Math.max(z0, NEAR + 1), z1, '#6B7075', { win: false });
+}
+
+function embank(s, side, z0, z1, h, w, col) {
+  const xi = side < 0 ? OUT_RAIL - 3 : MED_RAIL + 3, xo = xi + side * w;
+  for (let z = Math.max(z0, NEAR + 1); z < z1; z += 30)
+    s.add(z, poly([[xi, 0, z], [xo, h, z], [xo, h, Math.min(z + 30, z1)], [xi, 0, Math.min(z + 30, z1)]], fc(sh(col, side < 0 ? 0.80 : 1.0), z + 15)));
+}
+
+function skyline(s, zL, col, hmin, hmax, density) {
+  const r = rng(77 + zL);
+  const parts = [];
+  for (let x = -zL * 1.2; x < zL * 1.4; x += r() * zL * 0.05 / density + 10) {
+    const w = 25 + r() * 50, h = hmin + r() * (hmax - hmin);
+    parts.push(poly([[CX + x, 0, zL], [CX + x + w, 0, zL], [CX + x + w, h, zL], [CX + x, h, zL]], fc(col, zL)));
+  }
+  s.add(zL, parts.join(''));
+}
+
+function hills(s, zL, col, hmin, hmax, seed) {
+  const r = rng(seed); let d = `M${px(CX - zL * 1.4, zL)},${py(0, zL)}`;
+  for (let x = -zL * 1.4; x <= zL * 1.4; x += zL * 0.06) { const h = hmin + (hmax - hmin) * (0.5 + 0.5 * Math.sin(x / (zL * 0.25) + seed) * (0.6 + 0.4 * r())); d += `L${px(CX + x, zL)},${py(h, zL)}`; }
+  d += `L${px(CX + zL * 1.4, zL)},${py(0, zL)}Z`;
+  s.add(zL, `<path d="${d}" fill="${col}"/>`);
+}
+
+// ---------- base: sky, ground, road ----------
+function drawBase(s, o) {
+  const rg = rng(o.seed + 5);
+  let out = `<defs><linearGradient id="sky${o.id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7FA6CC"/><stop offset="1" stop-color="${FOG}"/></linearGradient></defs>`;
+  out += `<rect width="${W}" height="${HY + 2}" fill="url(#sky${o.id})"/>`;
+  let z = NEAR, step = 0.4;
+  const zs = [];
+  while (z < 7000) { zs.push(z); z += step; step = Math.max(0.4, z * 0.045); }
+  zs.push(7000);
+  for (let i = 0; i < zs.length - 1; i++) {
+    const a = zs[i], b = zs[i + 1] * 1.012, zm = (a + b) / 2;
+    const gcol = o.ground(zm);
+    const quad = (x0, x1, col) => `<polygon points="${pt(x0, 0, a)} ${pt(x1, 0, a)} ${pt(x1, 0, b)} ${pt(x0, 0, b)}" fill="${fc(col, zm)}" stroke="${fc(col, zm)}" stroke-width="0.6"/>`;
+    out += quad(-4000, 4000, gcol);
+    out += quad(MED_RAIL, FAR_IN, o.median || '#7C9A52');
+    out += quad(-9, 9, '#55575C');
+    out += quad(FAR_IN, FAR_OUT, '#5A5C61');
+    if (o.ramps) out += o.ramps(a, b, zm, quad);
+  }
+  // edge and lane lines
+  for (const x of [-7.5, 7.5]) for (let a = 4; a < 900; a += 18) {
+    const b = Math.min(a + 18, 900);
+    out += `<polygon points="${pt(x - 0.15, 0, a)} ${pt(x + 0.15, 0, a)} ${pt(x + 0.15, 0, b)} ${pt(x - 0.15, 0, b)}" fill="${fc('#E9E9E4', a)}"/>`;
+  }
+  for (const x of [-3.75, 0, 3.75]) for (let a = 4 + 6; a < 900; a += 18) {
+    out += `<polygon points="${pt(x - 0.08, 0, a)} ${pt(x + 0.08, 0, a)} ${pt(x + 0.08, 0, a + 6)} ${pt(x - 0.08, 0, a + 6)}" fill="${fc('#E9E9E4', a)}"/>`;
+  }
+  s.base = out;
+}
+
+function rails(s) {
+  const g = '#A9AFB5';
+  for (let z = NEAR + 1; z < 1100; z += 40) {
+    const z1 = Math.min(z + 40, 1100);
+    for (const x of [OUT_RAIL, MED_RAIL]) box(s, x - 0.1, x + 0.1, 0.35, 0.75, z, z1, g, { win: false });
+    for (const x of [OUT_RAIL, MED_RAIL]) box(s, x - 0.05, x + 0.05, 0, 0.35, z, z1, '#7D858C', { win: false });
+  }
+}
+
+function median(s, o) {
+  for (let z = 25; z < (o.lampTo || 600); z += (o.lampStep || 50)) lamp(s, 11, z, 9, true);
+}
+
+function traffic(s, o) {
+  const r = rng(o.seed + 11), cols = ['#B9BDC2', '#3A3D42', '#24324A', '#E9E9E7', '#1C1D20', '#C8B79A'];
+  for (let i = 0; i < 14; i++) {
+    const z = 22 + i * 38 + r() * 22, lane = Math.floor(r() * 4);
+    if (lane === 2 && z < 40) continue;
+    if (lane === 0 && r() < 0.5) { box(s, -5.6 - 1.25, -5.6 + 1.25, 0.3, 3.7, z, z + 14, '#C4C6C4'); s.add(z - 0.01, poly([[-6.5, 2.0, z], [-4.7, 2.0, z], [-4.8, 3.0, z], [-6.4, 3.0, z]], '#1A1F26')); continue; }
+    car(s, lane, z, cols[Math.floor(r() * cols.length)]);
+  }
+}
+
+function frame(id, title, o, build) {
+  const s = new Sc(Object.assign({ id, seed: id.charCodeAt(0) * 13, lampTo: 600, ground: () => '#8A9078' }, o));
+  drawBase(s, s.o); rails(s); median(s, s.o); traffic(s, s.o); playerCar(s);
+  build(s);
+  s.it.sort((a, b) => b[0] - a[0]);
+  const body = s.it.map(i => i[1]).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${title}"><g>${s.base}${body}</g>` +
+    `<rect x="12" y="12" width="${title.length * 7.2 + 20}" height="26" rx="6" fill="#0E141A" fill-opacity="0.72"/><text x="22" y="30" font-size="13" font-family="system-ui,sans-serif" fill="#F2F5F7">${title}</text></svg>`;
+}
+
+function fillRow(s, side, setback, z0, z1, make, gap) {
+  let z = z0;
+  while (z < z1) {
+    const b = make(s);
+    building(s, side, setback + (b.jit ? s.rnd(0, b.jit) : 0), z, b.len, b.depth, b.floors, b.st, b);
+    z += b.len + s.rnd(gap[0], gap[1]);
+  }
+}
+
+// ---------- frames ----------
+const frames = [];
+
+frames.push({ t: 'City, 4–6 m glass noise wall, towers behind',
+  cap: '<b>City.</b> Noise wall 5 m (transparent panels, 5 m post spacing). Row 1: residential and mixed blocks, 5–9 floors, 16–26 m behind the outer rail. Row 2 and office towers (up to 35 floors) fade into the haze. Median lamps every 40 m (9 m, double arm), one gantry.',
+  svg: () => frame('a', 'City', { lampStep: 40, ground: z => '#8A9078', seed: 3 }, s => {
+    skyline(s, 1500, '#B2C0CD', 60, 160, 1.3); skyline(s, 1100, '#A4B3C1', 40, 110, 1.0);
+    noiseWall(s, -1, 5, 1500, 5, 'glass');
+    const pickSt = () => s.pick([ST.res, ST.resB, ST.resC, ST.mixed, ST.panel, ST.clinker]);
+    fillRow(s, -1, 20, 14, 1500, () => ({ len: s.rnd(24, 55), depth: 14, floors: Math.round(s.rnd(5, 9)), st: pickSt(), jit: 6 }), [4, 30]);
+    fillRow(s, -1, 70, 30, 1500, () => ({ len: s.rnd(30, 50), depth: 28, floors: Math.round(s.rnd(10, 24)), st: s.pick([ST.office, ST.officeG, ST.officeD, ST.res]), jit: 20 }), [10, 60]);
+    fillRow(s, 1, 22, 20, 1500, () => ({ len: s.rnd(24, 55), depth: 14, floors: Math.round(s.rnd(5, 10)), st: pickSt(), jit: 6 }), [4, 30]);
+    fillRow(s, 1, 80, 40, 1500, () => ({ len: s.rnd(30, 50), depth: 28, floors: Math.round(s.rnd(12, 30)), st: s.pick([ST.office, ST.officeG, ST.officeD]), jit: 20 }), [20, 80]);
+    for (let z = 30; z < 400; z += 12) tree(s, -16, z, s.rnd(7, 10), '#3E5233');
+    gantry(s, 170);
+    billboard(s, 38, 300, 9, 3.4, false, []);
+  }) });
+
+frames.push({ t: 'Suburb, houses with hedges',
+  cap: '<b>Suburb.</b> 3 m timber-look noise wall (or none), houses 2 floors plus gable, 22–40 m behind the rail, hedges 1.8 m on the plot line, garden trees 6–9 m. Roofs dark grey or brown-grey, never red.',
+  svg: () => frame('b', 'Suburb', { lampStep: 80, ground: z => '#86995A', seed: 5 }, s => {
+    skyline(s, 1500, '#B6C3CD', 20, 45, 1.0);
+    noiseWall(s, -1, 5, 700, 3, 'wood');
+    const hs = [ST.house, ST.houseB, ST.houseC];
+    fillRow(s, -1, 24, 16, 1400, () => ({ len: s.rnd(10, 14), depth: s.rnd(8, 11), floors: 2, st: s.pick(hs), gable: true, jit: 12 }), [6, 20]);
+    fillRow(s, 1, 30, 16, 1400, () => ({ len: s.rnd(10, 14), depth: s.rnd(8, 11), floors: 2, st: s.pick(hs), gable: true, jit: 12 }), [6, 20]);
+    for (let z = 12; z < 1000; z += 14) { box(s, OUT_RAIL - 17, OUT_RAIL - 16, 0, 1.8, z, z + 14, '#4F6A3A', { win: false }); tree(s, OUT_RAIL - 20 - s.rnd(0, 6), z + s.rnd(0, 8), s.rnd(6, 9), '#3E5233'); }
+    for (let z = 20; z < 800; z += 22) tree(s, FAR_OUT + 20 + s.rnd(0, 8), z, s.rnd(6, 9), '#3E5233');
+  }) });
+
+frames.push({ t: 'Industrial, sheds, silos, pylon, billboard',
+  cap: '<b>Industrial.</b> Sheds 40–120 m long, 7–12 m high, metal cladding in blue-grey, light grey or sage green. Silos Ø 6–12 m, 18–40 m tall. Container stacks only grey, blue, green. Billboard 9 × 3.4 m, power pylon 50 m, no noise wall.',
+  svg: () => frame('c', 'Industrial', { lampStep: 60, ground: z => '#8D9185', seed: 7 }, s => {
+    skyline(s, 1500, '#B0BEC9', 25, 60, 0.8);
+    const sheds = [ST.shed, ST.shedB, ST.shedC];
+    fillRow(s, -1, 34, 20, 1500, () => ({ len: s.rnd(40, 110), depth: s.rnd(30, 55), floors: 1, st: Object.assign({}, s.pick(sheds), { fh: s.rnd(8, 12) }), jit: 14 }), [10, 50]);
+    fillRow(s, 1, 40, 30, 1500, () => ({ len: s.rnd(40, 110), depth: s.rnd(30, 55), floors: 1, st: Object.assign({}, s.pick(sheds), { fh: s.rnd(8, 12) }), jit: 14 }), [10, 50]);
+    for (const [z, n] of [[150, 3], [420, 4], [900, 3]]) for (let i = 0; i < n; i++) silo(s, OUT_RAIL - 22 - i * 11, z + i * 2, 4 + (i % 2) * 1.5, s.rnd(20, 34), '#A9ACA8');
+    for (let z = 60; z < 300; z += 9) { const c = s.pick(['#3F5C86', '#566F5F', '#8B9097']); box(s, OUT_RAIL - 14, OUT_RAIL - 11.5, 0, 5.8, z, z + 6, c, { win: false }); }
+    pylon(s, 52, 260, 50); pylon(s, 60, 640, 52);
+    billboard(s, -34, 120, 9, 3.4, true, ['#3F6E8C', '#E3B53A']);
+    billboard(s, 44, 380, 9, 3.4, false, []);
+    for (let z = 40; z < 500; z += 40) tree(s, OUT_RAIL - 8, z, s.rnd(5, 8), '#4A5E3A');
+    gantry(s, 210);
+  }) });
+
+frames.push({ t: 'Countryside, cutting, forest edge, farm overpass',
+  cap: '<b>Countryside.</b> No noise wall, lamps only at junctions. Grass embankment 1 : 2 with a tree line on top, forest edge 25–200 m, field strips, a farm-track overpass (deck 6.3 m above the road), one pylon. Hills like look-spec 10.2.',
+  svg: () => frame('d', 'Countryside', { seed: 9, lampTo: 0, ground: z => ['#6F8A3E', '#C8B46A', '#7E9A4A', '#8A7556', '#7E9A4A'][Math.floor(z / 70) % 5] }, s => {
+    hills(s, 2400, '#8A9B88', 80, 190, 3); hills(s, 1800, '#6E8262', 50, 110, 7);
+    embank(s, -1, 20, 700, 3.2, 8, '#6F8A3E');
+    for (let z = 30; z < 700; z += 9) tree(s, OUT_RAIL - 10 - s.rnd(0, 3), z, s.rnd(10, 15), '#3E5233', { fir: z % 3 === 0, wide: 0.22 }), s.it[s.it.length - 1][0] += 0;
+    for (let z = 30; z < 1400; z += 11) { tree(s, OUT_RAIL - 28 - s.rnd(0, 30), z, s.rnd(14, 22), z > 500 ? '#55684A' : '#3E5233', { fir: s.r() < 0.5, wide: 0.22 }); }
+    for (let z = 30; z < 1300; z += 12) tree(s, FAR_OUT + 16 + s.rnd(0, 40), z, s.rnd(12, 20), z > 500 ? '#55684A' : '#3E5233', { fir: s.r() < 0.5, wide: 0.22 });
+    bridge(s, 420, 9, 6.3, { x0: -60, x1: 60, piers: [-12, 12] });
+    for (let i = 0; i < 6; i++) { box(s, OUT_RAIL - 40 + i * 6, OUT_RAIL - 36 + i * 6, 0, 3.5, 200, 212, '#C9C8C2', { win: false }); }
+    pylon(s, -70, 560, 48);
+  }) });
+
+frames.push({ t: 'Interchange, ramp rising into a flyover, second level behind',
+  cap: '<b>Interchange.</b> Slip road on the outer side climbs 5 % into the flyover (deck top 6.3 m, clearance 4.7 m), a second level at 12.6 m crosses further on. Decks, parapets and piers: muted concrete grey <code>#7A7C80</code>, matte (Smoothness 0.1). Round piers Ø 1.8 m every 30 m.',
+  svg: () => {
+    const hOf = z => 6.3 * Math.min(1, Math.max(0, (700 - z) / 500));
+    return frame('e', 'Interchange', { seed: 11, lampStep: 40, lampTo: 500, ground: z => '#8A9078',
+      ramps: (a, b, zm, quad) => `<polygon points="${pt(-25, 0, a)} ${pt(-14, 0, a)} ${pt(-14, 0, b)} ${pt(-25, 0, b)}" fill="${fc(zm > 700 ? '#8A9078' : '#5A5C61', zm)}"/>` }, s => {
+      skyline(s, 1500, '#B2C0CD', 30, 90, 0.7);
+      for (let z = 50; z < 700; z += 10) {                       // ramp deck, side by side with the road
+        const h = hOf(z + 5), th = 1.5;
+        if (h < 0.2) continue;
+        box(s, -25, -14, Math.max(0, h - th), h, z, z + 10, CONC, { win: false });
+        box(s, -25.4, -25, h, h + 1.1, z, z + 10, '#6C6E72', { win: false });
+        box(s, -14, -13.6, h, h + 1.1, z, z + 10, '#6C6E72', { win: false });
+      }
+      for (let z = 60; z < 700; z += 30) { const h = hOf(z); if (h > 2.4) { const ph = h - 1.5; box(s, -20.9, -19.1, 0, ph, z, z + 1.8, CONC); box(s, -22.5, -17.5, ph - 1.0, ph, z - 0.4, z + 2.2, '#707276'); } }
+      bridge(s, 150, 12, 6.3, { x0: -25, x1: 34, piers: [11] });                // ramp continues over all lanes
+      for (let z = 150; z < 162; z += 4) {}
+      bridge(s, 520, 12, 12.6, { x0: -80, x1: 90, piers: [-30, 11, 52], th: 1.8 });
+      for (const z of [160, 150]) { box(s, -9.6, -8.4, 0, 4.7, z + 12, z + 14, '#8A8D86', { win: false }); }
+      gantry(s, 300);
+      for (let z = 40; z < 400; z += 14) tree(s, FAR_OUT + 12, z, 7, '#3E5233');
+      fillRow(s, 1, 60, 60, 1500, () => ({ len: s.rnd(30, 50), depth: 20, floors: Math.round(s.rnd(5, 10)), st: s.pick([ST.res, ST.mixed, ST.resC]), jit: 15 }), [20, 70]);
+    });
+  } });
+
+frames.push({ t: 'Trench, retaining walls, city above',
+  cap: '<b>Trench (Trog).</b> Concrete retaining walls 5.2 m with a 0.3 m darker cap band and a 1.1 m fence on top, joints every 20 m. A pedestrian bridge crosses at 6.5 m. The city stands on top at +5.2 m, so only roofs and upper floors show. Walls replace the rails as the collision line.',
+  svg: () => frame('f', 'Trench', { seed: 13, lampStep: 40, lampTo: 600, ground: z => '#8A9078' }, s => {
+    skyline(s, 1500, '#B2C0CD', 50, 130, 1.0);
+    retWall(s, -1, 4, 1200, 5.2); retWall(s, 1, 4, 1200, 5.2);
+    fillRow(s, -1, 8, 14, 1500, () => ({ len: s.rnd(24, 50), depth: 16, floors: Math.round(s.rnd(5, 9)), st: s.pick([ST.res, ST.resB, ST.mixed, ST.clinker]), baseY: 5.2, jit: 4 }), [6, 30]);
+    fillRow(s, 1, 8, 14, 1500, () => ({ len: s.rnd(24, 50), depth: 16, floors: Math.round(s.rnd(5, 9)), st: s.pick([ST.res, ST.resC, ST.mixed, ST.panel]), baseY: 5.2, jit: 4 }), [6, 30]);
+    bridge(s, 140, 5, 6.5, { x0: -11, x1: 24, piers: [] });
+    bridge(s, 420, 14, 7.2, { x0: -11, x1: 24, piers: [] });
+    for (let z = 20; z < 500; z += 18) { tree(s, -15, z, 8, '#3E5233'); }
+  }) });
+
+const solo = new URLSearchParams(location.search).get('solo');
+if (solo !== null) { document.body.innerHTML = frames[+solo].svg(); document.body.style.margin = '0'; }
+else
+document.getElementById('frames').innerHTML = frames.map(f => `<figure>${f.svg()}<figcaption>${f.cap}</figcaption></figure>`).join('');
+
+// ---------- palette ----------
+const PAL = [['Plaster sand', '#B8B2A3'], ['Plaster sage', '#AEB5A0'], ['Plaster blue-grey', '#A3B0B9'], ['Plaster cream', '#BDB594'], ['Precast panel', '#8E9093'], ['Precast dark', '#85888C'],
+  ['Yellow brick', '#A19470'], ['Dark clinker', '#5F5750'], ['Curtain frame', '#4A5058'], ['Glass sky-blue', '#7898B6'], ['Glass green', '#6A9690'], ['Glass graphite', '#6682A0'],
+  ['Shed blue-grey', '#7F909A'], ['Shed light grey', '#9A9E9C'], ['Shed sage', '#566F5F'], ['Roof flat', '#6E7174'], ['Roof anthracite', '#4A4D52'], ['Roof brown-grey', '#5C5A57'],
+  ['Bridge concrete', '#7A7C80'], ['Noise wall timber', '#7C8068'], ['Noise wall glass', '#A9B8C2'], ['Gantry back', '#8B9097']];
+document.getElementById('pal').innerHTML = PAL.map(p => `<div><i style="background:${p[1]}"></i><span>${p[0]}<br><code>${p[1]}</code></span></div>`).join('');
+
+// ---------- facade tiles ----------
+(function () {
+  const tiles = [['F1 plaster', ST.res], ['F2 pastel', ST.resB], ['F3 precast', ST.panel], ['F4 curtain wall', ST.office], ['F5 brick', ST.mixed], ['F6 cladding', ST.shed], ['F7 house', ST.house], ['F8 roof/solid', null]];
+  let o = '';
+  tiles.forEach((t, i) => {
+    const x = 10 + i * 128, y = 10, S = 112;
+    o += `<rect x="${x}" y="${y}" width="${S}" height="${S}" fill="${t[1] ? t[1].wall : '#6E7174'}" stroke="#00000030"/>`;
+    if (t[1]) {
+      const st = t[1], bays = st.bay > 5 ? 1 : 2, fl = st.bay > 5 ? 1 : 2, bw = S / bays, fh = S / fl;
+      for (let f = 0; f < fl; f++) for (let b = 0; b < bays; b++) {
+        const ww = Math.min(bw - 4, bw * st.ww / st.bay), wh = fh * st.wh / (st.bay > 5 ? 3.2 : st.fh);
+        const wx = x + b * bw + (bw - ww) / 2, wy = y + f * fh + fh - (st.sill / (st.bay > 5 ? 3.2 : st.fh)) * fh - wh;
+        o += `<rect x="${wx.toFixed(1)}" y="${wy.toFixed(1)}" width="${ww.toFixed(1)}" height="${wh.toFixed(1)}" fill="${st.glass}"/><rect x="${wx.toFixed(1)}" y="${wy.toFixed(1)}" width="${ww.toFixed(1)}" height="${(wh * 0.22).toFixed(1)}" fill="#FFFFFF" fill-opacity="0.18"/>`;
+      }
+    }
+    o += `<text x="${x}" y="${y + S + 20}" font-size="12" fill="currentColor" font-family="system-ui,sans-serif">${t[0]}</text>`;
+  });
+  document.getElementById('atlas').innerHTML = `<g style="color:#5B6773">${o}</g>`;
+})();
+</script>
+</body>
+</html>
