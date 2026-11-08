@@ -66,7 +66,7 @@ namespace Geisterfahrer.Editor
                 semi = Font("Inter-SemiBold", 72, 8, "0123456789.,- kmh/"),
                 black = Font("Inter-Black", 96, 10, "GEISTERFAHR"),
                 sign = Font("BarlowSemiCondensed-SemiBold", 64, 6, "0123456789."),
-                vehicles = Road.Types.Select(t => new Models { list = ModelsFor(t.ModelKey) }).ToArray(),
+                vehicles = VariantModels(),
                 player = PlayerPrefab.Build() ?? Model("Player"),
             };
             art.boldShadow = Shadow(art.bold);
@@ -225,7 +225,7 @@ namespace Geisterfahrer.Editor
             var scene = UnityEditor.SceneManagement.EditorSceneManager.OpenScene(ScenePath);
             var loop = UnityEngine.Object.FindAnyObjectByType<GameLoop>();
             loop.art.facade = FacadeMaterial();
-            loop.art.vehicles = Road.Types.Select(t => new Models { list = ModelsFor(t.ModelKey) }).ToArray();
+            loop.art.vehicles = VariantModels();
             if (player) loop.art.player = player;
             EditorUtility.SetDirty(loop);
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
@@ -233,13 +233,11 @@ namespace Geisterfahrer.Editor
             Debug.Log("MODELS " + string.Join(", ", loop.art.vehicles.Select(v => v.list.Length)));
         }
 
-        // Every file Vehicles/<key>*.glb (Compact.glb, Compact2.glb, ...): the game picks one at random per spawn.
-        static GameObject[] ModelsFor(string key)
+        // One prefab per part of each variant's recipe (VehicleRecipes), made from the GLBs by VehiclePrefabs.
+        static Models[] VariantModels()
         {
-            var dir = $"{TP}/Vehicles";
-            if (!Directory.Exists(dir)) return new GameObject[0];
-            return Directory.GetFiles(dir, key + "*.glb").OrderBy(f => f)
-                .Select(f => AssetDatabase.LoadAssetAtPath<GameObject>(f.Replace("\\", "/"))).Where(g => g != null).ToArray();
+            VehiclePrefabs.Reset();
+            return Road.Variants.Select((v, i) => new Models { list = VehicleRecipes.For(i).Parts.Select(VehiclePrefabs.Build).ToArray() }).ToArray();
         }
 
         // URP mobile settings (docs/dev/unity-plan.md 1, look-spec 4).
@@ -305,8 +303,8 @@ namespace Geisterfahrer.Editor
             PlayerSettings.companyName = "uncosens";
             PlayerSettings.productName = "Geisterfahrer";
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.uncosens.geisterfahrer");
-            PlayerSettings.bundleVersion = "0.1.0";
-            PlayerSettings.Android.bundleVersionCode = 1;
+            PlayerSettings.bundleVersion = "0.2.0";
+            PlayerSettings.Android.bundleVersionCode = 2;
             SetIcons();
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             // ARM64 only: Unity 6.3 refuses Android x86_64 (deprecated), so the emulator runs it through ARM translation.

@@ -34,15 +34,15 @@ namespace Geisterfahrer.Game
         readonly Dictionary<Vehicle, GameObject> views = new Dictionary<Vehicle, GameObject>();
         readonly Dictionary<Vehicle, float> births = new Dictionary<Vehicle, float>();
         readonly List<Vehicle> gone = new List<Vehicle>();
-        readonly List<GameObject>[] pools = new List<GameObject>[Road.Types.Length];
-        readonly int[] lastPaint = new int[Road.Types.Length];
+        readonly List<GameObject>[] pools = new List<GameObject>[Road.Variants.Length];
+        readonly int[] lastPaint = new int[Road.Variants.Length];
         float camX, camVel, dyingTime, shakeK;
         // Driving feel (look-spec 11): smoothed camera and body values.
         float fovH = 80, camK, camBack = 6.5f, camYaw, camRoll, lastV, pitch, pitchVel, bodyRoll, bodyRollVel, rumbleTime;
         int lastHits, seed;
 
         // Camera follows speed (decision 55): at CamFullKmh it is CamLower m lower and CamCloser m closer, looking CamPitchDown degrees further down.
-        const float CamHeight = 2.7f, CamLower = 0.5f, CamCloser = 1f, CamPitchDown = 4.5f, CamFullKmh = 300, CamLag = 0.6f; // metres, degrees, km/h, seconds
+        const float CamHeight = 2.7f, CamLower = 0.75f, CamCloser = 1.5f, CamPitchDown = 6.75f, CamFullKmh = 300, CamLag = 0.6f; // metres, degrees, km/h, seconds
         static readonly Color Sky = Placeholder.Hex(0xC9D6E2);
 
         void Awake()
@@ -292,7 +292,7 @@ namespace Geisterfahrer.Game
 
             foreach (var v in run.Vehicles)
             {
-                if (!views.TryGetValue(v, out var go)) { views[v] = go = Take(v.Type); births[v] = Time.time; }
+                if (!views.TryGetValue(v, out var go)) { views[v] = go = Take(v.Variant); births[v] = Time.time; }
                 // Fade-in by scale over 0.4 s (decision 41): no transparent car materials.
                 float grow = Mathf.SmoothStep(0, 1, (Time.time - births[v]) / 0.4f);
                 go.transform.localScale = Vector3.one * Mathf.Max(grow, 0.001f);
@@ -420,36 +420,29 @@ namespace Geisterfahrer.Game
             return ps;
         }
 
-        // Build a few vehicles of each type behind the start screen: the first spawn of a model cost half a second on the tablet.
+        // Build one vehicle of each variant behind the start screen: the first spawn of a model cost half a second on the tablet.
         void Prewarm()
         {
-            var made = new List<GameObject>();
-            for (int type = 0; type < pools.Length; type++)
+            for (int variant = 0; variant < pools.Length; variant++)
             {
-                made.Clear();
-                for (int i = 0; i < 3; i++) made.Add(Take(type));
-                foreach (var g in made) { g.SetActive(false); pools[type].Add(g); }
+                var g = Take(variant);
+                g.SetActive(false); pools[variant].Add(g);
             }
         }
 
-        GameObject Take(int type)
+        GameObject Take(int variant)
         {
-            var pool = pools[type];
+            var pool = pools[variant];
             if (pool.Count > 0)
             {
                 var g = pool[pool.Count - 1];
                 pool.RemoveAt(pool.Count - 1);
                 g.SetActive(true);
-                g.GetComponent<Paintable>().Paint(Placeholder.RandomPaint(ref lastPaint[type])); // new colour on reuse
+                var rec = VehicleRecipes.For(variant);
+                if (rec.FixedColor == 0) g.GetComponent<Paintable>().Paint(Placeholder.RandomPaint(ref lastPaint[variant])); // new colour on reuse
                 return g;
             }
-            var t = Road.Types[type];
-            var models = type < art.vehicles.Length ? art.vehicles[type].list : null;
-            // One of the downloaded models for this type (several files = variety); buses and trucks keep their own livery.
-            var go = models != null && models.Length > 0
-                ? Placeholder.Fit(models[Random.Range(0, models.Length)], (float)t.Length, t.Name, Flipped.Contains(t.ModelKey), t.Name != "Bus" && t.Name != "Truck")
-                : Placeholder.PaintableVehicle(t.Name, (float)t.Length, (float)t.Width, (float)t.Height, t.Name == "Truck" ? Placeholder.Trailer : null);
-            go.GetComponent<Paintable>().Paint(Placeholder.RandomPaint(ref lastPaint[type]));
+            var go = VehicleRecipes.Make(art, variant, ref lastPaint[variant]);
             VehicleFx.Attach(go, false);
             return go;
         }
@@ -457,7 +450,7 @@ namespace Geisterfahrer.Game
         void Release(Vehicle v, GameObject go)
         {
             go.SetActive(false);
-            pools[v.Type].Add(go);
+            pools[v.Variant].Add(go);
         }
     }
 }

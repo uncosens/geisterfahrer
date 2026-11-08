@@ -10,6 +10,9 @@ namespace Geisterfahrer.Game
 
         public void Add(Material m) => mats.Add(m);
 
+        // Takes over another vehicle's paint materials (parts of a combination).
+        public void Merge(Paintable other) { mats.AddRange(other.mats); other.mats.Clear(); }
+
         public void Paint(Placeholder.PaintColor p)
         {
             foreach (var m in mats)

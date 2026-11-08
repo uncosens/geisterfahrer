@@ -187,6 +187,27 @@ namespace Geisterfahrer.Game
             return root.gameObject;
         }
 
+        // Parts of one vehicle nose to tail (+z = front); a single part is just Fit.
+        public static GameObject FitParts(string name, float total, GameObject[] prefabs, Part[] parts)
+        {
+            if (parts.Length == 1) return Fit(prefabs[0], total, name, parts[0].Flip, parts[0].Tint, parts[0].PaintMat);
+            var root = new GameObject(name);
+            var paintable = root.AddComponent<Paintable>();
+            float z = total / 2;
+            for (int i = 0; i < parts.Length; i++)
+            {
+                float len = parts[i].Length > 0 ? parts[i].Length : total;
+                var p = Fit(prefabs[i], len, parts[i].File, parts[i].Flip, parts[i].Tint, parts[i].PaintMat);
+                p.transform.SetParent(root.transform, false);
+                p.transform.localPosition = new Vector3(0, 0, z - len / 2);
+                z -= len;
+                var pp = p.GetComponent<Paintable>();
+                paintable.Merge(pp);
+                Object.Destroy(pp);
+            }
+            return root;
+        }
+
         // glTFast materials use their own shader (baseColorFactor / baseColorTexture), not URP Lit's _BaseColor / _BaseMap.
         static Texture TextureOf(Material m)
             => m.HasProperty("baseColorTexture") ? m.GetTexture("baseColorTexture") : m.HasProperty("_BaseMap") ? m.GetTexture("_BaseMap") : null;

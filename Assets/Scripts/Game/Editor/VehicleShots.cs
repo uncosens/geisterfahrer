@@ -36,8 +36,8 @@ namespace Geisterfahrer.Editor
             {
                 var t = type < 0 ? null : Road.Types[type];
                 var go = type < 0 ? Game.Placeholder.Fit(art.player, (float)Road.PlayerLength, "Player", false, false, Game.GameLoop.PlayerPaintMaterial)
-                    : Game.Placeholder.Fit(art.vehicles[type].list[0], (float)t.Length, t.Name, false, t.Name != "Bus" && t.Name != "Truck");
-                go.GetComponent<Game.Paintable>().Paint(type < 0 ? Game.Placeholder.PlayerRed : Game.Placeholder.RandomPaint(ref lastPaint));
+                    : Game.VehicleRecipes.Make(art, Road.VariantsOf[type][0], ref lastPaint);
+                if (type < 0) go.GetComponent<Game.Paintable>().Paint(Game.Placeholder.PlayerRed);
                 go.transform.SetPositionAndRotation(Game.TrackView.Place(z, x), Game.TrackView.Facing(z) * Quaternion.Euler(0, oncoming ? 180 : 0, 0));
                 cars.Add(go);
             }
@@ -55,8 +55,8 @@ namespace Geisterfahrer.Editor
             Shoot(cam, rt, "veh-scratch", false);
         }
 
-        // Contact sheets: every file in Vehicles/ except the player, one row each: rear, front and side view, as in the game
-        // (same Fit and paint path). docs/dev/shots/veh-sheet-N.png, four vehicles per sheet.
+        // Contact sheets: every variant, one row each: rear, front and side view, as in the game (same recipe and paint path).
+        // docs/dev/shots/veh-sheet-N.png, four variants per sheet. Optional argument -only=<substring of variant name>.
         // Batch: Unity.exe -batchmode -quit -projectPath . -executeMethod Geisterfahrer.Editor.VehicleShots.Sheet
         public static void Sheet()
         {
@@ -69,23 +69,23 @@ namespace Geisterfahrer.Editor
             Game.VehicleFx.Init(art.spark);
             view.Scroll(100); Game.TrackView.S = 100;
             RenderSettings.fogStartDistance = 300; RenderSettings.fogEndDistance = 1600;
-            var files = Directory.GetFiles("Assets/ThirdParty/Vehicles", "*.glb").Where(f => !Path.GetFileName(f).StartsWith("Player")).OrderBy(f => f).ToArray();
+            string only = System.Environment.GetCommandLineArgs().Where(a => a.StartsWith("-only=")).Select(a => a.Substring(6).ToLowerInvariant()).FirstOrDefault();
+            var ids = Enumerable.Range(0, Road.Variants.Length).Where(i => only == null || Road.Variants[i].Name.ToLowerInvariant().Contains(only)).ToArray();
+            string force = System.Environment.GetCommandLineArgs().Where(a => a.StartsWith("-paint=")).Select(a => a.Substring(7)).FirstOrDefault();
             var cam = new GameObject("Cam").AddComponent<Camera>();
             cam.clearFlags = RenderSettings.skybox ? CameraClearFlags.Skybox : CameraClearFlags.SolidColor; cam.fieldOfView = 35; cam.farClipPlane = 1650;
             const int W = 600, H = 400;
             var rt = new RenderTexture(W, H, 24); cam.targetTexture = rt;
             int last = -1;
-            for (int sheet = 0; sheet * 4 < files.Length; sheet++)
+            for (int sheet = 0; sheet * 4 < ids.Length; sheet++)
             {
                 var big = new Texture2D(W * 3, H * 4, TextureFormat.RGB24, false);
-                for (int row = 0; row < 4 && sheet * 4 + row < files.Length; row++)
+                for (int row = 0; row < 4 && sheet * 4 + row < ids.Length; row++)
                 {
-                    var f = files[sheet * 4 + row];
-                    string name = Path.GetFileNameWithoutExtension(f);
-                    float len = name.StartsWith("Bus") ? 12 : name.StartsWith("Truck") ? 16.5f : name.StartsWith("Van") ? 5.5f : name.StartsWith("Sedan") ? 4.8f : 4f;
-                    var g = AssetDatabase.LoadAssetAtPath<GameObject>(f.Replace("\\", "/"));
-                    var car = Game.Placeholder.Fit(g, len, name, false, !(name.StartsWith("Bus") || name.StartsWith("Truck")));
-                    car.GetComponent<Game.Paintable>().Paint(Game.Placeholder.RandomPaint(ref last));
+                    int id = ids[sheet * 4 + row];
+                    float len = (float)Road.Types[Road.Variants[id].Class].Length;
+                    var car = Game.VehicleRecipes.Make(art, id, ref last);
+                    if (force != null) car.GetComponent<Game.Paintable>().Paint(new Game.Placeholder.PaintColor(System.Convert.ToInt32(force, 16), 0.3f, 0.8f));
                     car.transform.SetPositionAndRotation(Game.TrackView.Place(30, 0), Game.TrackView.Facing(30));
                     var focus = Game.TrackView.Place(30, 0, len > 8 ? 2f : 0.8f);
                     float d = len * 1.5f + 3, h = len > 8 ? 4f : 2.2f;
@@ -97,7 +97,7 @@ namespace Geisterfahrer.Editor
                         RenderTexture.active = rt;
                         big.ReadPixels(new Rect(0, 0, W, H), v * W, (3 - row) * H);
                     }
-                    Debug.Log($"SHEET {sheet} row {row} {name}");
+                    Debug.Log($"SHEET {sheet + 1} row {row} {id} {Road.Variants[id].Name}");
                     Object.DestroyImmediate(car);
                 }
                 big.Apply();

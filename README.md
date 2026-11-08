@@ -26,23 +26,11 @@ All tuning numbers are in `Core/Tuning.cs` (editable on the `GameLoop` component
 
 Core works in road space (distance along the road, lateral offset). Only `TrackView.Place` maps it to the world along the generated centre line.
 
-Vehicle models are the `.glb` files in `Assets/ThirdParty/Vehicles/` (hand downloads, see CREDITS.md); without them the game uses primitive placeholders. `Placeholder.Fit` turns each model's long axis to z, scales it to the real length, grounds it, recolours its paint and glass, and flips models listed in `GameLoop.Flipped`.
+Vehicle models are `.glb` files in `Assets/ThirdParty/Vehicles/<class>/` (hand downloads, see CREDITS.md); without them the game uses primitive placeholders. `VehicleRecipes` says which files make each of the 30 variants (`Road.Variants`) and how they are painted; `VehiclePrefabs` (editor) removes interiors and thins heavy meshes into `Assets/ThirdParty/Generated/`; `Placeholder.Fit` turns each part's long axis to z, scales it to the real length, grounds it and recolours its paint and glass.
 
 ## Attribution
 
-The vehicle models are free Sketchfab models under **CC BY 4.0** (https://creativecommons.org/licenses/by/4.0/); the licence was read from each file's own metadata. Changes: scaled, recoloured (body paint), the player's wheels split into separate parts.
-
-| Model | Author |
-|---|---|
-| Porsche 911 Carrera S (991), the player's car | Mona x Supercars (https://sketchfab.com/Car2022) |
-| 1998 Volkswagen Golf Mk4 | ImperialBlue3D (https://sketchfab.com/ImperialBlue3D) |
-| Low Poly BMW M5 F90 | kulonee (https://sketchfab.com/ynesolefru) |
-| BMW 320i E90 Low Polly | rifdanzz (https://sketchfab.com/rifdanzz) |
-| Mercedes Sprinter Passenger | kuwalol93 (https://sketchfab.com/kuwalol93) |
-| VW Transporter Multivan Green | LEON elenaisakova248 (https://sketchfab.com/elenaisakova248) |
-| Coach bus | own.guest (https://sketchfab.com/own.guest) |
-| 1998 Hyundai Aero Space Coach Bus | ImperialBlue (https://sketchfab.com/ImperialBlue3D) |
-| Mercedes Actros with lowboy trailer | LuizZed36 (https://sketchfab.com/LuizZed36) |
+The vehicle models are free Sketchfab models under **CC BY 4.0** (https://creativecommons.org/licenses/by/4.0/); the licence was read from each file's own metadata. Changes: scaled, recoloured (body paint), interiors removed, heavy meshes thinned, some assembled into combinations. The full list with links and one attribution line per model is in [CREDITS.md](CREDITS.md): 26 traffic models by ImperialBlue3D, rifdanzz, Tomaso, Lexyc16, LEON elenaisakova248, Mona x Supercars, Evan Hiltz, Libau Media, kuwalol93, Silyboy, e-restrepo1114, BillyJJackson, rhcreations, Daniel Zhabotinsky, mcskinssketchfab, cmitche1, AndersonCardoso, Arsen Ismailov, 3DCars, own.guest and CR3D Modelagens, and the player's Porsche 911 Carrera S (991) by Mona x Supercars (https://sketchfab.com/Car2022).
 
 Sky "Dreifaltigkeitsberg" (Poly Haven) and the grass texture (ambientCG) are CC0. Fonts Inter and Barlow Semi Condensed are SIL OFL 1.1. Full links in [CREDITS.md](CREDITS.md). Vehicle names and designs belong to their owners; this project is non-commercial and not affiliated with any manufacturer.
 
@@ -77,8 +65,6 @@ Controls: left half = steer (drag from where you touch), right half = accelerate
 Not checked: two real thumbs at once on glass (adb injects one finger; the logic is covered by `InputTests`), vibration and sound by ear, the paint tint on the Van model by eye.
 
 Dev tools: a file `autodrive` in `/sdcard/Android/data/com.uncosens.geisterfahrer/files/` makes a dev build drive itself (text `density=3.5` and `immortal` inside change the traffic and make hits harmless). Remove the file to play by hand. The flag counts for 10 minutes after the file's last write (the app deletes an older one at start; `adb shell touch` it to renew), and a TEST mark shows on screen while it is active. Tests must remove it in a `finally` / at the end and check with `adb -s <serial> shell ls /sdcard/Android/data/com.uncosens.geisterfahrer/files/`. `adb -s <serial> logcat -s Unity` shows `PERF` and `RUNSTART` lines.
-
-Extra model files for variety: `Compact2.glb`, `Sedan2.glb`, `Van2.glb`, `Bus2.glb`, `Truck2.glb` in `Assets/ThirdParty/Vehicles/` are picked at random next to the first ones (fallback picks in `docs/design/vehicle-assets.md`; Sketchfab needs a login, so not fetched here).
 
 ## Checked (2026-11-07, GDD v0.4)
 

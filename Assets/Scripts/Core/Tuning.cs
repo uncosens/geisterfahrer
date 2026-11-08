@@ -32,6 +32,8 @@ namespace Geisterfahrer.Core
         public double PushOffSideSpeed = 1.5;
         public double ScrapeKmhPerSecond = 15;
         public double MaxStepMove = 0.5;
+        // Non-lethal vehicles (motorbikes, GDD 2.5): loss = clamp(8 km/h x J, 0.40 v, 0.60 v); a second contact within 4 s is game over.
+        public double NonLethalMinLoss = 0.40, NonLethalMaxLoss = 0.60, NonLethalChainTime = 4;
 
         // Spawning (GDD 5.3, 4.2, 4.3)
         public double DensityScale = 1.4;      // +40 % traffic in every phase (decision 35)
@@ -44,5 +46,9 @@ namespace Geisterfahrer.Core
         public double CorridorRailGap = 0.2;
         public double MeetPad = 0.3;           // s added before and after a vehicle's meet window
         public double TunnelDensity = 0.7;
+        public double FastBehindTallTime = 2.0; // sports cars, police, ambulances and bikes behind a tall vehicle (GDD 5.5)
+        public double CatchUpMargin = 20;       // m, GDD 4.3 catch-up rule
+        public double BikeSpacing = 600;        // m between motorbikes at spawn (GDD 2.5)
+        public double WanderCap = 0.30;         // m, wander amplitude cap (GDD 4.2)
     }
 }

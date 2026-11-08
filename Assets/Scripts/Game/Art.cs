@@ -11,7 +11,7 @@ namespace Geisterfahrer.Game
         public Material baseLit, asphalt, grass, dash, spark, facade; // facade: Geisterfahrer/Facade shader (scenery)
         public TMP_FontAsset bold, semi, black, sign;
         public Material boldShadow, semiShadow;
-        [Tooltip("Models per vehicle type (Road.Types order); several files per type give variety. Empty = placeholder.")]
+        [Tooltip("Prefabs per variant (Road.Variants order), one per part of its VehicleRecipes recipe. Empty = placeholder.")]
         public Models[] vehicles = new Models[0];
         public GameObject player;
     }

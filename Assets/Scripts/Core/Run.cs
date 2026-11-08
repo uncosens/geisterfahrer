@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Geisterfahrer.Core
 {
     public class Vehicle
     {
-        public int Type, Lane;
+        public int Type, Variant, Lane;    // Type = class index in Road.Types, Variant = index in Road.Variants
+        public bool Dead;                  // removed by a non-lethal hit
         public double Z, Speed;            // Z = road distance ahead of the player; Speed = own speed in m/s, toward the player
         public double OBase, A, Period, Phase, OMax, Offset; // side offset inside the lane with slow wander (GDD 4.2)
         public bool Touching;
@@ -31,6 +33,9 @@ namespace Geisterfahrer.Core
         public double SHold;               // steering needed to hold the line in the current curve (GDD 6.3)
         public double LastImpulse;         // last survived or fatal hit, for feedback
         public int Hits;
+        public int BikeHits;               // non-lethal contacts so far (the view shows the debris)
+        public double BikeX, BikeZ;        // where the last one happened
+        double lastNonLethalTime = -1e9;
         public double HitX, HitZ, HitNx;   // last contact point (road space) and its side, for effects
         public bool Scraping;              // touched a rail or vehicle during the last Step
         readonly bool[] railTouching = new bool[2];
@@ -49,7 +54,11 @@ namespace Geisterfahrer.Core
             X = corridorTarget = Road.LaneX(2);
         }
 
-        public double SpawnDistance => Math.Max(T.MinSpawnDistance, (V + Road.FastestTrafficKmh / 3.6) * T.SpawnWarningTime);
+        // Per vehicle (GDD 5.3): max(400 m, closing speed x 3.5 s) with its own speed.
+        public double SpawnDistanceFor(double vehicleSpeed) => Math.Max(T.MinSpawnDistance, (V + vehicleSpeed) * T.SpawnWarningTime);
+
+        // Worst case (the fastest vehicle), for the haze and for spawn timing.
+        public double SpawnDistance => SpawnDistanceFor(Road.FastestTrafficKmh / 3.6);
 
         public void Step(double dt, double steer, bool throttle)
         {
@@ -104,15 +113,16 @@ namespace Geisterfahrer.Core
                 if (Contacts.Box(X, Yaw, hl, hw, v.X, v.Z, v.T.Length / 2, v.T.Width / 2, out var nx, out var nz, out var depth))
                 {
                     double vn = nx * Side + nz * (V + v.Speed);
-                    Hit(ref v.Touching, nx, nz, depth, vn, v.T.Mass, h);
+                    Hit(ref v.Touching, nx, nz, depth, vn, v.T.Mass, h, v);
                 }
                 else v.Touching = false;
                 if (Crashed) return;
             }
+            Vehicles.RemoveAll(x => x.Dead);
         }
 
         // First touch: impulse decides crash or survive. Still touching: scrape.
-        void Hit(ref bool touching, double nx, double nz, double depth, double vn, double otherMass, double h)
+        void Hit(ref bool touching, double nx, double nz, double depth, double vn, double otherMass, double h, Vehicle other = null)
         {
             HitX = X + nx * Road.PlayerWidth / 2; HitZ = nz * Road.PlayerLength / 2; HitNx = nx;
             Scraping = true;
@@ -120,6 +130,7 @@ namespace Geisterfahrer.Core
             {
                 double j = Contacts.Impulse(T.Mass, otherMass, vn);
                 LastImpulse = j;
+                if (other != null && other.T.NonLethal) { NonLethalContact(other, nx, j); return; }
                 if (j >= T.CrashImpulse) { Crashed = true; return; }
                 Hits++;
                 V = Math.Max(0, V - T.SpeedLossKmhPerImpulse * j / 3.6);
@@ -129,6 +140,21 @@ namespace Geisterfahrer.Core
             else V = Math.Max(0, V - T.ScrapeKmhPerSecond / 3.6 * h);
             touching = true;
             X -= Math.Sign(nx) * depth; // push out sideways; the player cannot move in z
+        }
+
+        // A motorbike never ends the run, but costs 40-60 % of the speed (GDD 2.5). A second contact within 4 s is game over.
+        void NonLethalContact(Vehicle bike, double nx, double j)
+        {
+            if (Time - lastNonLethalTime < T.NonLethalChainTime) { Crashed = true; return; }
+            lastNonLethalTime = Time;
+            double loss = Math.Max(T.NonLethalMinLoss * V, Math.Min(T.NonLethalMaxLoss * V, T.SpeedLossKmhPerImpulse * j / 3.6));
+            V = Math.Max(0, V - loss);
+            double dir = Math.Abs(X - bike.X) < 0.05 ? -Math.Sign(X) : Math.Sign(X - bike.X); // away from the bike, toward the middle if level
+            if (dir == 0) dir = 1;
+            Side = dir * Math.Min(T.PushOffSideSpeed, T.SideSpeedPerSpeed * V);
+            Hits++; BikeHits++;
+            BikeX = bike.X; BikeZ = bike.Z;
+            bike.Dead = true;
         }
 
         // ---- traffic (GDD 2.4, 4) ----
@@ -150,42 +176,67 @@ namespace Geisterfahrer.Core
             TrySpawn();
         }
 
+        readonly int[] lastVariant = Enumerable.Repeat(-1, Road.Types.Length).ToArray();
+
         public bool TrySpawn()
         {
             int type = Pick(i => Road.Types[i].PhaseWeights[Phase(Time)], Road.Types.Length);
             var t = Road.Types[type];
-            double speed = (t.MinKmh + rng.NextDouble() * (t.MaxKmh - t.MinKmh)) / 3.6;
+            int variant = PickVariant(type);
+            var vr = Road.Variants[variant];
+            double minK = vr.Overrides ? vr.MinKmh : t.MinKmh, maxK = vr.Overrides ? vr.MaxKmh : t.MaxKmh;
+            double speed = (minK + rng.NextDouble() * (maxK - minK)) / 3.6;
             double oMax = (Road.LaneWidth - t.Width) / 2 - T.LaneMargin;
             var v = new Vehicle
             {
-                Type = type, Z = SpawnDistance, Speed = speed, OMax = oMax,
+                Type = type, Variant = variant, Z = SpawnDistanceFor(speed), Speed = speed, OMax = oMax,
                 OBase = Math.Max(-oMax, Math.Min(oMax, Normal() * 0.5 * oMax)),
-                A = rng.NextDouble() * 0.3 * oMax, Period = 8 + rng.NextDouble() * 7, Phase = rng.NextDouble() * 2 * Math.PI,
+                A = rng.NextDouble() * Math.Min(0.3 * oMax, T.WanderCap), Period = 8 + rng.NextDouble() * 7, Phase = rng.NextDouble() * 2 * Math.PI,
             };
+            if (t.NonLethal && Vehicles.Exists(o => o.T.NonLethal && Math.Abs(o.Z - v.Z) < T.BikeSpacing)) return false; // bikes keep 600 m apart
+            var lanes = vr.LaneWeights ?? t.LaneWeights;
             var tried = new bool[Road.LaneCount];
             for (int k = 0; k < Road.LaneCount; k++)
             {
-                int lane = Pick(i => tried[i] ? 0 : t.LaneWeights[i], Road.LaneCount);
+                int lane = Pick(i => tried[i] ? 0 : lanes[i], Road.LaneCount);
                 if (lane < 0) break;
                 tried[lane] = true;
                 v.Lane = lane;
-                if (Fits(v)) { v.Offset = v.OffsetAt(Time); Vehicles.Add(v); return true; }
+                if (Fits(v)) { v.Offset = v.OffsetAt(Time); Vehicles.Add(v); lastVariant[type] = variant; return true; }
             }
             return false;
         }
 
-        // Same lane: keep a gap (1.5 s behind tall vehicles) and never let a faster vehicle catch a slower one.
+        // Variant by its share inside the class, never the one that was just used (GDD 4.1.3 rule 3).
+        int PickVariant(int type)
+        {
+            var ids = Road.VariantsOf[type];
+            int pick = Pick(i => ids.Length > 1 && ids[i] == lastVariant[type] ? 0 : Road.Variants[ids[i]].Share, ids.Length);
+            return ids[Math.Max(0, pick)];
+        }
+
+        static bool IsFast(Vehicle x) => x.T.Name == "Sports" || x.T.NonLethal || Road.Variants[x.Variant].Overrides;
+
+        // Same lane (GDD 4.3, 5.5): a gap by length, 1.5 s (2.0 s for fast light vehicles) behind a tall vehicle, and the catch-up rule
+        // (a faster vehicle behind a slower one must not reach it before the slower one passes the player).
         // Every lane: the body with its whole wander envelope stays clear of the safe corridor during its meet window.
         // ponytail: meet times use the current player speed; the GDD's re-plan after a 20 % speed change,
         // truck columns and the crest/curve corridor limits are not done.
-        bool Fits(Vehicle n)
+        public bool Fits(Vehicle n)
         {
             foreach (var v in Vehicles)
             {
                 if (v.Lane != n.Lane) continue;
-                double gap = (n.T.Length + v.T.Length) / 2 + (v.T.IsTall ? T.SameLaneGapTime * (V + n.Speed) : 10);
-                if (Math.Abs(n.Z - v.Z) < gap) return false;
-                if (v.Z < n.Z) n.Speed = Math.Min(n.Speed, v.Speed);
+                // The one nearer to the player is "ahead" (it meets the player first).
+                var ahead = v.Z <= n.Z ? v : n; var behind = ahead == v ? n : v;
+                double dz = Math.Abs(n.Z - v.Z);
+                double gap = (n.T.Length + v.T.Length) / 2 + (ahead.T.IsTall ? (IsFast(behind) ? T.FastBehindTallTime : T.SameLaneGapTime) * (V + behind.Speed) : 10);
+                if (dz < gap) return false;
+                if (behind.Speed > ahead.Speed)
+                {
+                    double tMeet = Math.Max(ahead.Z, 1) / Math.Max(V + ahead.Speed, 1);
+                    if (dz < (behind.Speed - ahead.Speed) * tMeet + T.CatchUpMargin) return false;
+                }
             }
             double closing = Math.Max(V + n.Speed, 1), reach = (n.T.Length + Road.PlayerLength) / 2;
             double t0 = Time + (n.Z - reach) / closing - T.MeetPad, t1 = Time + (n.Z + reach) / closing + T.MeetPad;

@@ -10,7 +10,7 @@ namespace Geisterfahrer.Tests
     {
         const double Dt = 1.0 / 60;
         const double VAT10 = 150.2, DAT10 = 238.3; // 10 s from standstill with the 175 kW model (decision 58)
-        const int Compact = 0, Sedan = 1, Truck = 4;
+        static readonly int Compact = Road.Index("Compact"), Sedan = Road.Index("Sedan"), Truck = Road.Index("Truck");
 
         static Run NewRun(double kmh, double curvature = 0, double grade = 0)
         {
@@ -142,12 +142,12 @@ namespace Geisterfahrer.Tests
         [Test]
         public void SpawnDistanceGrowsWithSpeed()
         {
-            var r = NewRun(230);
+            var r = NewRun(150);
             Assert.AreEqual(400, r.SpawnDistance, 1);
             r.V = r.TopSpeed;
-            Assert.AreEqual((r.TopSpeed + 50) * 3.5, r.SpawnDistance, 1); // closing speed x 3.5 s, once it passes 400 m
+            Assert.AreEqual((r.TopSpeed + 240 / 3.6) * 3.5, r.SpawnDistance, 1); // fastest vehicle (240 km/h) x 3.5 s, once it passes 400 m
             r.V = 300 / 3.6;
-            Assert.AreEqual((300 / 3.6 + 50) * 3.5, r.SpawnDistance, 1); // downhill: 465 m
+            Assert.AreEqual((300 / 3.6 + 240 / 3.6) * 3.5, r.SpawnDistance, 1); // GDD 5.3: 525 m
         }
 
         [Test]
