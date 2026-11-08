@@ -268,6 +268,13 @@ namespace Geisterfahrer.Editor
                 }
                 return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
             }
+            // The start-screen wordmark is loaded as a plain texture: keep its exact size, no mipmaps, no compression.
+            var wm = (TextureImporter)AssetImporter.GetAtPath("Assets/UI/Resources/Icons/wordmark.png");
+            if (wm.npotScale != TextureImporterNPOTScale.None || wm.mipmapEnabled || wm.textureCompression != TextureImporterCompression.Uncompressed)
+            {
+                wm.textureType = TextureImporterType.Default; wm.npotScale = TextureImporterNPOTScale.None; wm.mipmapEnabled = false;
+                wm.alphaIsTransparency = true; wm.textureCompression = TextureImporterCompression.Uncompressed; wm.SaveAndReimport();
+            }
             var master = Tex("icon-1024");
             void Fill(PlatformIconKind kind, params Texture2D[] layers)
             {

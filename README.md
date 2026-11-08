@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/design/logo/logo-horizontal-dark.svg">
+  <img alt="Geisterfahrer" src="docs/design/logo/logo-horizontal.svg" height="64">
+</picture>
+
 # Geisterfahrer
 
 Endless wrong-way driving on the German Autobahn. Unity 6.3 (URP), Android, landscape. Personal use.
@@ -22,6 +27,24 @@ All tuning numbers are in `Core/Tuning.cs` (editable on the `GameLoop` component
 Core works in road space (distance along the road, lateral offset). Only `TrackView.Place` maps it to the world along the generated centre line.
 
 Vehicle models are the `.glb` files in `Assets/ThirdParty/Vehicles/` (hand downloads, see CREDITS.md); without them the game uses primitive placeholders. `Placeholder.Fit` turns each model's long axis to z, scales it to the real length, grounds it, recolours its paint and glass, and flips models listed in `GameLoop.Flipped`.
+
+## Attribution
+
+The vehicle models are free Sketchfab models under **CC BY 4.0** (https://creativecommons.org/licenses/by/4.0/); the licence was read from each file's own metadata. Changes: scaled, recoloured (body paint), the player's wheels split into separate parts.
+
+| Model | Author |
+|---|---|
+| Porsche 911 Carrera S (991), the player's car | Mona x Supercars (https://sketchfab.com/Car2022) |
+| 1998 Volkswagen Golf Mk4 | ImperialBlue3D (https://sketchfab.com/ImperialBlue3D) |
+| Low Poly BMW M5 F90 | kulonee (https://sketchfab.com/ynesolefru) |
+| BMW 320i E90 Low Polly | rifdanzz (https://sketchfab.com/rifdanzz) |
+| Mercedes Sprinter Passenger | kuwalol93 (https://sketchfab.com/kuwalol93) |
+| VW Transporter Multivan Green | LEON elenaisakova248 (https://sketchfab.com/elenaisakova248) |
+| Coach bus | own.guest (https://sketchfab.com/own.guest) |
+| 1998 Hyundai Aero Space Coach Bus | ImperialBlue (https://sketchfab.com/ImperialBlue3D) |
+| Mercedes Actros with lowboy trailer | LuizZed36 (https://sketchfab.com/LuizZed36) |
+
+Sky "Dreifaltigkeitsberg" (Poly Haven) and the grass texture (ambientCG) are CC0. Fonts Inter and Barlow Semi Condensed are SIL OFL 1.1. Full links in [CREDITS.md](CREDITS.md). Vehicle names and designs belong to their owners; this project is non-commercial and not affiliated with any manufacturer.
 
 ## Build
 

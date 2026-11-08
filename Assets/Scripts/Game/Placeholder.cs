@@ -172,7 +172,7 @@ namespace Geisterfahrer.Game
                     if (!ms[i]) continue;
                     string n = ms[i].name.ToLowerInvariant();
                     if (n.Contains("paint") || n == paintMat) ms[i] = Fresh(new Material(BaseMat), paintable);
-                    else if (n.Contains("glass") || n.Contains("window")) ms[i] = GlassMat;
+                    else if (n.Contains("glass") || n.Contains("window") || (tintBody && ColorOf(ms[i]).a < 0.9f)) ms[i] = GlassMat; // translucent parts are windows, never body paint
                     else if (tintBody && !hasPaint && (Textured(ms[i]) ? !hasBrightPlain : BodyLike(ms[i])) && !n.Contains("tyre") && !n.Contains("wheel"))
                         ms[i] = Fresh(LitFrom(ms[i]), paintable);
                 }

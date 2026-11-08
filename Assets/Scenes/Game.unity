@@ -195,7 +195,6 @@ MonoBehaviour:
     vehicles:
     - list:
       - {fileID: -6689036041284674117, guid: 5c1c495832a2f3d40a6337195295ab9c, type: 3}
-      - {fileID: 8128668236925612103, guid: fd48810c09d15834693702fc0ded2bc5, type: 3}
     - list:
       - {fileID: -6689036041284674117, guid: ef23ec18157e7cd4cb9d83f292c91e91, type: 3}
       - {fileID: -6689036041284674117, guid: d236078d114d06d4db169e7f17ca4d6e, type: 3}
@@ -209,7 +208,6 @@ MonoBehaviour:
       - {fileID: -6689036041284674117, guid: d3449752dff81b948b82ba663bfbccbc, type: 3}
     - list:
       - {fileID: -6689036041284674117, guid: 5c1c495832a2f3d40a6337195295ab9c, type: 3}
-      - {fileID: 8128668236925612103, guid: fd48810c09d15834693702fc0ded2bc5, type: 3}
     - list:
       - {fileID: -6689036041284674117, guid: 5eb78b2b689a75b43be6539d82c35311, type: 3}
       - {fileID: -6689036041284674117, guid: 9072cf2278ca97f41bfd1f972f95132c, type: 3}

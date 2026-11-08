@@ -99,6 +99,24 @@ namespace Geisterfahrer.Editor
             Debug.Log("PLAYER applied " + loop.art.player);
         }
 
+        // Lists the materials of every traffic model: name, colour, texture.
+        public static void Materials()
+        {
+            foreach (var f in Directory.GetFiles("Assets/ThirdParty/Vehicles", "*.glb"))
+            {
+                var g = AssetDatabase.LoadAssetAtPath<GameObject>(f.Replace("\\", "/"));
+                var seen = new HashSet<Material>();
+                foreach (var r in g.GetComponentsInChildren<Renderer>())
+                    foreach (var m in r.sharedMaterials)
+                        if (m && seen.Add(m))
+                        {
+                            var c = m.HasProperty("baseColorFactor") ? m.GetColor("baseColorFactor") : m.HasProperty("_BaseColor") ? m.GetColor("_BaseColor") : Color.white;
+                            var t = m.HasProperty("baseColorTexture") ? m.GetTexture("baseColorTexture") : null;
+                            Debug.Log($"MAT {Path.GetFileName(f)} | {m.name} | {c} | tex {(t ? t.name : "-")} | renderers {r.name}");
+                        }
+            }
+        }
+
         public static void Dump()
         {
             var prefab = Build();
