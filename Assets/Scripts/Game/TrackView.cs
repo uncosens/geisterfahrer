@@ -18,7 +18,7 @@ namespace Geisterfahrer.Game
         // Underground box (decision 46): inside half-width, clear height, roof slab thickness (top at Track.UgRoof).
         const float BoxX = Rail + 0.5f, BoxH = 6.0f;
         static readonly float[] Bands = { WallX, 14, 20, 28, 40, 55, 75, 100, 130, 400 }; // |d| edges of the hill grid
-        enum M { Asphalt, Paint, Steel, Grass, White, Black, Concrete, SignBack, Lamp, Field0, Field1, Field2, Field3, Rock, Tree, Trunk, Roof, Blue, Red, Facade0, Facade1, Facade2, Facade3, Count }
+        enum M { Asphalt, Paint, Steel, Grass, White, Black, Concrete, SignBack, Lamp, Field0, Field1, Field2, Field3, Rock, Tree, Trunk, Roof, Blue, Red, Facade0, Facade1, Facade2, Facade3, Water, Count }
 
         Track track;
         Material[] mats;
@@ -51,6 +51,7 @@ namespace Geisterfahrer.Game
             mats[(int)M.Blue] = Placeholder.Mat(Placeholder.Hex(0x1C5AA8), 0, 0.3f);
             mats[(int)M.Red] = Placeholder.Mat(Placeholder.Hex(0xC4262E), 0, 0.3f);
             for (int i = 0; i < 4; i++) mats[(int)M.Facade0 + i] = FacadeMat(i);
+            mats[(int)M.Water] = Placeholder.Mat(Placeholder.Hex(0x3D5A6B), 0.1f, 0.6f);
             sceneryOf.Clear();
             int[] fields = { 0x6F8A3E, 0xC8B46A, 0x8A7556, 0x7E9A4A };
             for (int i = 0; i < 4; i++) mats[(int)M.Field0 + i] = Placeholder.Mat(Dim(Placeholder.Hex(fields[i]), 0.85f), 0, 0.05f);
@@ -132,13 +133,14 @@ namespace Geisterfahrer.Game
                 {
                     foreach (int side in new[] { -1, 1 })
                         b.Wall(s, e, side * (Rail + 0.04f), 0.395f, 0.705f, (int)M.Steel);
-                    if (kind == Section.Viaduct)
+                    if (kind == Section.Viaduct || kind == Section.Bridge) // river bridge: same deck and parapets, piers stand in the water
                     {
                         foreach (int side in new[] { -1, 1 }) b.Box(mid, side * (Rail + 0.35f), 0.45f, 4, 0.3f, 0.9f, (int)M.Concrete);
                         b.Box(mid, 0, -1.05f, 4, Rail * 2 + 1, 1.8f, (int)M.Concrete); // deck slab, top 15 cm under the road (no z-fight)
                     }
                 }
                 if (kind == Section.Underground) UndergroundSegment(b, s, e, fieldL, fieldR);
+                else if (kind == Section.Trench) TrenchSegment(b, s, e, fieldL, fieldR);
                 else if (Hill(s) > 0.001f || Hill(e) > 0.001f) HillGround(b, s, e, kind == Section.Tunnel, fieldL, fieldR);
                 else
                 {
@@ -149,6 +151,8 @@ namespace Geisterfahrer.Game
                     b.Strip(s, e, -400, -40, g0 - 0.05f, fieldL, 0, false, g1 - 0.05f);
                     b.Strip(s, e, 40, 400, g0 - 0.05f, fieldR, 0, false, g1 - 0.05f);
                 }
+                if (kind == Section.Interchange) Ramps(b, s, e);
+                if (kind == Section.Bridge && Depth(mid, kind) > 2.5f) b.Strip(s, e, -250, 250, -Depth(s, kind) + 0.5f, (int)M.Water, 0, false, -Depth(e, kind) + 0.5f);
             }
 
             for (double s = Mathf.Ceil((float)(s0 / 2)) * 2; s < s1; s += 2)
@@ -159,7 +163,7 @@ namespace Geisterfahrer.Game
                 if (kind == Section.Tunnel && s % (TunnelZone(s) ? 4 : 12) < 0.01) b.Box(s, 0, Spring + VaultH - 0.1f, 0.6f, 1.2f, 0.08f, (int)M.Lamp);
                 if (kind == Section.Underground && track.Covered(s) && s % 8 < 0.01)
                     foreach (int side in new[] { -1, 1 }) b.Box(s, side * 3.5f, BoxH - 0.1f, 0.6f, 1.2f, 0.08f, (int)M.Lamp);
-                if (kind == Section.Viaduct && s % 40 < 0.01)
+                if ((kind == Section.Viaduct || kind == Section.Bridge) && s % 40 < 0.01)
                     foreach (int side in new[] { -1, 1 }) b.Box(s, side * 5, -ValleyDepth(s) / 2, 2.5f, 2.5f, ValleyDepth(s), (int)M.Concrete);
                 // Chevron boards every 20 m on the outer side of curves under 1000 m, seen from behind (grey back, white frame).
                 double kappa = track.Curvature(s);
@@ -211,6 +215,8 @@ namespace Geisterfahrer.Game
             foreach (double os in track.Overpasses)
                 if (os >= s0 && os < s1)
                 {
+                    float cut = (float)track.Depth(os);
+                    if (cut > 4.9f) { b.Box(os, 0, cut - 0.55f, 12, 60, 1.2f, (int)M.Concrete); continue; } // street bridge over a trench, flush with the street
                     b.Box(os, 0, 5.3f, 12, 60, 1.2f, (int)M.Concrete);
                     foreach (float d in new[] { -Rail - 2, Rail + 2, 0f })
                         if (d != 0) b.Box(os, d, 2.35f, 1.2f, 1.2f, 4.7f, (int)M.Concrete);
@@ -225,7 +231,7 @@ namespace Geisterfahrer.Game
             return go;
         }
 
-        float Depth(double s, Section kind) => kind == Section.Viaduct ? Mathf.Max(3, ValleyDepth(s)) : 0; // valley at least 3 m below the deck
+        float Depth(double s, Section kind) => kind == Section.Viaduct || kind == Section.Bridge ? Mathf.Max(3, ValleyDepth(s)) : 0; // valley at least 3 m below the deck
 
         float ValleyDepth(double s)
         {
@@ -235,6 +241,9 @@ namespace Geisterfahrer.Game
                     float h = 20 + (float)(st.s0 % 60);
                     return h * Mathf.Sin(Mathf.PI * (float)((s - st.s0) / (st.s1 - st.s0)));
                 }
+            foreach (var st in track.Structures) // river bridge: deck 8-20 m above the water, banks easing in over 60 m
+                if (st.kind == Section.Bridge && s >= st.s0 && s < st.s1)
+                    return (8 + (float)(st.s0 % 12)) * Smooth((float)(Mathf.Min((float)(s - st.s0), (float)(st.s1 - s)) / 60));
             return 0;
         }
 

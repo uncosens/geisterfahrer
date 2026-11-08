@@ -46,6 +46,21 @@ namespace Geisterfahrer.Editor
                 for (double s = 1600; s < 13000; s += 25)
                     if (track.Zones.At(s) == z && track.Zones.At(s + 400) == z && track.Zones.At(s - 100) == z && track.KindAt(s + 100) == Section.Open && track.KindAt(s + 300) == Section.Open)
                     { Shot(z.ToString().ToLower(), s + 100); if (z == Zone.City) { Shot("city-before", s + 100, false); } break; }
+
+            // Structures: the first seed that has each kind.
+            foreach (var (kind, label, offs) in new[] { (Section.Interchange, "interchange", new[] { -60.0, 100, 400 }), (Section.Trench, "trench", new[] { -150.0, 300, 450 }), (Section.Bridge, "bridge", new[] { -100.0, 60, 150 }) })
+            {
+                Track t2 = null; (double s0, double s1, Section kind) found = default;
+                for (int seed = 1; seed < 80 && t2 == null; seed++)
+                {
+                    var tt = new Track(seed); tt.Ensure(40000, 3);
+                    foreach (var st in tt.Structures) if (st.kind == kind) { t2 = tt; found = st; break; }
+                }
+                if (t2 == null) { Debug.Log("CITY no " + label); continue; }
+                track = t2; view.Init(art, track);
+                int i = 0;
+                foreach (double o in offs) Shot(label + (++i), found.s0 + o);
+            }
         }
     }
 }
