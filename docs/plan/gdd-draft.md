@@ -1,8 +1,8 @@
-# Geisterfahrer — Game Design (final v0.5)
+# Geisterfahrer — Game Design (final v0.8)
 
 "Geisterfahrer" is German for a wrong-way driver ("ghost driver"). This draft describes the chosen concept and lists open questions. The developer implements from it, so numbers are concrete; they are first values to tune in playtests.
 
-Status: final v0.4. Decided by the user (and by the director while the user was away, see `docs/decisions.md`):
+Status: final v0.8. Decided by the user (and by the director while the user was away, see `docs/decisions.md`):
 - Concept A, one map (German Autobahn), realistic 3D, chase camera, Unity, Android, **landscape only**.
 - **Personal use only** (the user plays it alone; no store release, no monetization, no online). So the player car is modeled directly on the **Porsche 911**, in **red**, and real vehicle designs may be used. (Personal use told by the user directly to the planner.)
 - **No hard shoulder.** (Told by the user directly to the planner.)
@@ -14,13 +14,32 @@ Status: final v0.4. Decided by the user (and by the director while the user was 
 - **Real car force model** for speed, no top-speed cap, **no minimum speed**, **start at 0 km/h**.
 - **Records = top speed and max distance** (no points, no near miss, no combo).
 
+Changes from v0.7 (merge of the planner's v0.7 with the developer's newer rules, plus the user's newest numbers, `docs/decisions.md` 73–78):
+- **Power 175 kW** (user; CdA 0.30, μ_drive 0.55, mass 1500 kg unchanged). From standstill: 100 km/h **5.5 s**, 200 km/h **17.0 s**, 250 km/h **28.1 s**, 300 km/h **49.1 s**, flat ceiling **342 km/h**, 4 % downhill ceiling 382 km/h, practical top after a 2 km downhill about **363 km/h** (2.2). Every speed-dependent table is redone: scrub (2.2), first seconds (2.4), spawn distance up to 604 m (5.3), crest sight with the lowered camera (5.4), curve speeds and drift (6.3), speed dial **0–400 km/h** (2.6).
+- **Minimum curve radius 470 → 600 m** (6.2, 6.3, 6.5): at 342 km/h a 470 m curve left only 0.5 s between seeing it and the last moment to coast. At 600 m that margin is 8.8 s.
+- **Speed camera pitch range +50 %** (user): 3° → **4.5°** further down at 300 km/h; height and distance unchanged (5.1).
+- **Shake from 180 km/h** (was 200), full at 340 km/h, `ShakeScale` **0.52** (5.1).
+- Kept from the developer: speed-based camera instead of the throttle camera, underground and mound tunnels with the random tunnel schedule, covered sections, crest radius 20 000 m, the `autodrive` test flag that expires after 10 minutes, the 991 player car (2.7, 4.1).
+- Decision cross references use the renumbered rows of `docs/decisions.md` (planner rows 58–72 in the merged file).
+
+Changes from v0.6 (user decisions on top speed and motorbikes, `docs/decisions.md` 66–71):
+- **Real top speed:** CdA 0.65 → 0.30 m², μ_drive 0.60 → 0.55 and a stronger engine (power raised in steps, 175 kW in v0.8 above) so that the car reaches a real top speed in about a minute. The 18 s target for 100–200 km/h cannot be held together with 300 km/h in about a minute for a constant-power car (2.2).
+- Everything that depends on top speed was redone: spawn distance (5.3), crest radius **20 000 m** (5.4, 6.4), curve speeds and drift with the 9.8 m/s side speed (6.3), a rule against tight curves right after a steep downhill (6.3), first-seconds timing (2.4), shake range (5.1), speed dial (2.6), records text (2.3). The numbers were recomputed again for 175 kW in v0.8.
+- **Motorbikes are non-lethal** (replaces the rider rule of v0.6): a hit, even head-on, never ends the run; it costs 40–60 % of the speed (2.5).
+
+Changes from v0.5 (user request: at least 30 different vehicles, `docs/decisions.md` 58–64):
+- 4.1 is rewritten: **16 physical classes** and **62 variants** (model and paint on the same physics). Spawn weights per class still sum to 100 per phase and keep the heavy-vehicle share (0 / 17 / 29 / 40 %).
+- Variants carry only a share inside the class; police and ambulance also carry a speed and lane override (occasional fast vehicles).
+- Motorbike class: flagged `NonLethal` in v0.7 (see above).
+- Side offsets for all classes (4.2); spawn distance computed per vehicle (5.3); catch-up gap rule for fast vehicles behind slow ones in the same lane (4.3); impulse examples corrected for the 9.8 m/s side speed (2.5).
+
 Changes from v0.4 (user playtest, applied by the developer, `docs/decisions.md` 32–37):
 - Steering: max side speed 7 → **9.8 m/s** and side-speed limit 0.25 × v → **0.35 × v** (+40 %); return to straight after the finger lifts: time constant 0.15 → **0.30 s** (2.2).
 - Acceleration: power 260 → **140 kW**, new drive traction limit **μ_drive 0.60** (grip μ 0.85 stays for scrub and curve drift). 0–100 km/h **5.7 s**, 100–200 km/h **18.6 s**, flat ceiling **247 km/h** (240 km/h only after about a minute of clean driving). All speed tables in 2.2 are redone for this model.
 - Traffic density **+40 %** in every phase (2.4). Two more vehicle types and 17 paint colours (4.1).
 - Tunnels are regular but random: none in the first 1.5 km, then a 50 % chance per straight of 500 m or more, two kinds: earth-mound bore or underground cut-and-cover box (6.4, 6.5).
-- The camera follows speed, not the accelerator: one smoothstep over 0–300 km/h (low-pass 0.6 s) lowers it 0.5 m, moves it 1 m closer and tilts it 3° further down; the speed FOV (80° → 92°) stays (5.1). The lower camera still sees over cars (1.45 m) and trucks keep their blind spot as before.
-- Camera and road shake only while the accelerator is held above **200 km/h**, growing to 340 km/h, at 48 % of the old amplitude (5.1). Power 165 kW (decision 54): 0–100 in 5.6 s, 0–200 in 17.9 s, 300 km/h at 54 s, flat ceiling 335 km/h..
+- The camera follows speed, not the accelerator (5.1; numbers updated in v0.8).
+- Camera and road shake only while the accelerator is held, from a speed threshold (5.1; numbers updated in v0.8). Power was raised in steps (165 kW in decision 54; 175 kW in v0.8).
 - Overpass and tunnel concrete mid-grey `#7A7C80`, matte; steel rails and fields toned down; sun 1.35.
 
 Changes from v0.3:
@@ -119,10 +138,10 @@ v       = max(v, 0)              no reverse, no rolling backward
 | Value | Number | Note |
 |---|---|---|
 | m | 1500 kg | 911-like |
-| P | **165 kW** at the wheels | was 260 kW, then 140, 155; 165 gives 300 km/h at 54 s (decision 54) |
+| P | **175 kW** at the wheels | v0.4: 260, v0.5: 140, then 155, 165, now 175 (user): 300 km/h after about 49 s |
 | μ | 0.85 | tyre grip: scrub and the curve grip in 6.3 |
-| μ_drive | **0.60** | traction limit of the drive force (power-limited above about 53 km/h) |
-| CdA | 0.65 m² | |
+| μ_drive | **0.55** | traction limit of the drive force (power-limited above about 72 km/h) |
+| CdA | **0.30 m²** | was 0.65; lower drag lets a modest engine reach 342 km/h (a real 911 is about 0.65, this is a game value) |
 | ρ | 1.225 kg/m³ | |
 | Crr | 0.012 | |
 | Engine braking | 400 N | |
@@ -143,67 +162,82 @@ s      = the steering input actually applied (−1..+1, 0 inside the dead zone)
 - Full steering: `0.15 × 1500 × 8.34 = 1876 N`.
 - The same `s` counts for lane changes and for steering against curve drift (6.3), since both are the same thumb. So holding a tight curve costs speed all the way through it.
 - **Small corrections are cheap** because of `s²`: `s = 0.3` costs only 9 % of full scrub (about 0.4 km/h per second). The dead zone (1.5 mm) costs nothing. No extra exemption is needed.
-- `min(1, v / 27.8 m/s)` fades the cost out below 100 km/h, in line with the side-speed limit `0.25 × v`, so steering at low speed does not stall the car.
+- `min(1, v / 27.8 m/s)` fades the cost out below 100 km/h, in line with the side-speed limit `0.35 × v`, so steering at low speed does not stall the car.
 - Letting the car drift without steering costs nothing, but then the drift pushes it toward the rail.
 
 **Speed change during 1 s of steering** (flat road; first number = no steering, for comparison):
 
 | Start speed | Accelerator | s = 0 | s = 0.3 | s = 0.5 | s = 1.0 (full) |
 |---|---|---|---|---|---|
-| 100 km/h | held | +10.3 | +9.9 | +9.2 | +6.0 km/h |
-| 100 km/h | up | −2.1 | −2.5 | −3.2 | −6.4 km/h |
-| 200 km/h | held | +2.6 | +2.2 | +1.5 | −1.8 km/h |
-| 200 km/h | up | −4.3 | −4.7 | −5.4 | −8.7 km/h |
-| 300 km/h | held | −2.9 | −3.3 | −4.0 | −7.3 km/h |
-| 300 km/h | up | −7.8 | −8.2 | −8.9 | −12.3 km/h |
+| 100 km/h | held | +13.4 | +13.0 | +12.3 | +9.2 km/h |
+| 100 km/h | up | −1.7 | −2.1 | −2.8 | −6.1 km/h |
+| 200 km/h | held | +5.6 | +5.2 | +4.5 | +1.2 km/h |
+| 200 km/h | up | −2.7 | −3.1 | −3.8 | −7.2 km/h |
+| 300 km/h | held | +1.5 | +1.1 | +0.4 | −2.9 km/h |
+| 300 km/h | up | −4.4 | −4.8 | −5.5 | −8.9 km/h |
 
-- Full steering costs about **4 km/h per second** at any speed above 100 km/h. With the weaker engine that turns the gain above 200 km/h into a loss, so weaving at high speed clearly slows the car; at 100 km/h it is a small dent in a strong pull. (300 km/h is only reached downhill.)
-- **Ceiling while steering steadily** (accelerator held, flat): `s = 0.3` → 239 km/h, `s = 0.5` → 227 km/h, `s = 1.0` → 171 km/h. A long curve that needs `s_hold` close to 1 pulls the car down toward a holdable speed by itself.
+- Full steering costs about **4 km/h per second** at any speed above 100 km/h. Above 250 km/h that turns a small gain into a loss, so weaving at high speed clearly slows the car; at 100 km/h it is a small dent in a strong pull.
+- **Ceiling while steering steadily** (accelerator held, flat): `s = 0.3` → 331 km/h, `s = 0.5` → 312 km/h, `s = 1.0` → 227 km/h. A long curve that needs `s_hold` close to 1 pulls the car down toward a holdable speed by itself.
 
-Checks: 0–100 km/h **5.7 s**, 100–200 km/h **18.6 s**, ceiling on flat road **247 km/h**. This is deliberately slower than a real 911 Carrera S (3.5 s, 8–9 s, 308 km/h): the user wants the high speeds to be earned.
+**Checks (v0.8 constants, chosen by simulation against the user's targets):**
+
+| Target | Result |
+|---|---|
+| 0–100 km/h about 6 s | **5.5 s** |
+| 100–200 km/h about 18 s | **11.5 s** (36 % under; the user raised power twice since) |
+| 300 km/h after about 55 s from standstill | **49.1 s** (100 km/h → 300 km/h takes 43.7 s) |
+| Flat ceiling 315–330 km/h | **342 km/h** (above the old range, user's choice of 175 kW) |
+
+With a constant-power car, slow 100–200 km/h and fast 300 km/h pull against each other; each step up in power moved the car further toward "fast". The mass stays 1.5 t because the collision rule uses it. A power curve that rises with speed would add one more constant and is not used.
 
 **Holding the accelerator from the start (0 km/h, flat road):**
 
-| Run time | Speed | Distance driven |
-|---|---|---|
-| 1 s | 21 km/h | 3 m |
-| 2 s | 41 km/h | 12 m |
-| 3 s | 62 km/h | 26 m |
-| 4 s | 78 km/h | 45 m |
-| 6 s | 103 km/h | 96 m |
-| 8 s | 122 km/h | 159 m |
-| 10 s | 137 km/h | 231 m |
-| 12 s | 150 km/h | 311 m |
-| 15 s | 166 km/h | 443 m |
-| 20 s | 187 km/h | 688 m |
-| 30 s | 213 km/h | 1.25 km |
-| 40 s | 227 km/h | 1.86 km |
-| 60 s | 240 km/h | 3.17 km |
-| 90 s | 245 km/h | 5.2 km |
-| 2 min + | 247 km/h | |
+| Run time | Speed | Distance driven | Acceleration |
+|---|---|---|---|
+| 1 s | 19 km/h | 3 m | 19 km/h/s |
+| 2 s | 38 km/h | 11 m | 19 |
+| 3 s | 57 km/h | 24 m | 19 |
+| 4 s | 76 km/h | 42 m | 19 |
+| 6 s | 107 km/h | 94 m | 13 |
+| 8 s | 131 km/h | 160 m | 10.5 |
+| 10 s | 150 km/h | 238 m | 8.9 |
+| 12 s | 167 km/h | 326 m | 7.7 |
+| 15 s | 188 km/h | 474 m | 6.4 |
+| 20 s | 216 km/h | 756 m | 5.0 |
+| 30 s | 256 km/h | 1.42 km | 3.2 |
+| 40 s | 283 km/h | 2.17 km | 2.2 |
+| 50 s | 301 km/h | 2.98 km | 1.5 |
+| 60 s | 314 km/h | 3.84 km | 1.0 |
+| 70 s | 323 km/h | 4.72 km | 0.7 |
+| 90 s | 333 km/h | 6.55 km | 0.3 |
+| 2 min | 339 km/h | 9.35 km | 0.1 |
+| 3 min + | 342 km/h | 15 km | 0 |
 
-Where it flattens: 21 km/h/s at the start, 11 at 100 km/h, 6 at 150, under 3 km/h/s from 200; above 230 km/h each extra km/h takes several seconds.
+Time-to-speed from standstill: **100 km/h 5.5 s, 200 km/h 17.0 s, 250 km/h 28.1 s, 300 km/h 49.1 s, 310 km/h 56.5 s, 320 km/h 66.6 s.** Time-to-speed starting at 100 km/h: 200 km/h 11.5 s, 250 km/h 22.6 s, 300 km/h 43.7 s.
+
+Where it flattens: strong pull (19 km/h/s) to about 70 km/h, 13 km/h/s at 107, 6.4 at 188, 3.2 at 256, under 1 km/h/s from 300; the last 10 km/h below the ceiling take over a minute.
 
 **Ceiling by grade** (where drive force = drag + rolling + grade):
 
 | Grade | −4 % | −2 % | 0 % | +2 % | +4 % |
 |---|---|---|---|---|---|
-| Ceiling | 272 km/h | 259 km/h | 247 km/h | 234 km/h | 222 km/h |
+| Ceiling | 382 km/h | 362 km/h | 342 km/h | 323 km/h | 304 km/h |
 
-- Downhill sections let the car go above the flat ceiling. So the top-speed record keeps moving with skill: catching a long downhill at full speed with a clean line. This replaces the v0.3 "late power boost" idea.
-- Uphill, coasting slows the car faster; on a 4 % downhill a coasting car settles at about 20 km/h instead of stopping (grade force is a bit more than rolling + engine braking).
+- A car at the flat ceiling that drives a 2 km downhill at −4 % reaches about **363 km/h** at the bottom (355 km/h after 1 km); the 382 km/h is approached only on very long downhills. So the practical top is about 365 km/h, and the speed dial (2.6) and the sight rules (5.3, 5.4) are sized for 382 km/h.
+- Downhill sections let the car go above the flat ceiling, so the top-speed record keeps moving with skill: catching a long downhill at full speed with a clean line.
+- Uphill, coasting slows the car faster. On a −4 % downhill a coasting car settles at about 29 km/h; on −2 % it still comes to a stop.
 
-**Coasting (accelerator up) on flat road from 303 km/h:**
+**Coasting (accelerator up) on flat road from 339 km/h:**
 
 | Coast time | 0 s | 2 s | 4 s | 6 s | 10 s | 15 s | 20 s | 30 s | 40 s | 60 s |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Speed (km/h) | 303 | 288 | 273 | 260 | 236 | 211 | 189 | 154 | 126 | 82 |
+| Speed (km/h) | 339 | 329 | 319 | 310 | 292 | 271 | 253 | 220 | 192 | 145 |
 
-Slowdown by speed: about 8 km/h/s at 300, 6 at 250, 4.3 at 200, 3 at 150, 2.1 at 100, 1.7 at 60. Coasting to a stop takes about 41 s from 60 km/h, 62 s from 100 km/h. No brake in the MVP, so coasting is the only way to slow before a tight curve (see 6.3 for the distances).
+Slowdown by speed: 5.3 km/h/s at 340, 4.4 at 300, 3.5 at 250, 2.7 at 200, 2.1 at 150, 1.7 at 100, 1.5 at 60. Coasting to a stop takes about 42 s from 60 km/h, 67 s from 100 km/h, 143 s from 300 km/h. No brake in the MVP, so coasting is the only way to slow before a tight curve. From 342 km/h, coasting takes **7.1 s and 0.64 km** to reach 307 km/h and 18 s and 1.5 km to reach 261 km/h (see 6.3).
 
 **Minimum speed: none (user decision).** Knock-on rules:
 
-- A stopped or slow car can hardly move sideways (side-speed limit `0.25 × v`). That is the natural penalty for going slow.
+- A stopped or slow car can hardly move sideways (side-speed limit `0.35 × v`). That is the natural penalty for going slow.
 - A stopped car hit head-on is always game over (see 2.5).
 - No permanent safe spot exists: with side offsets (4.2) a gap next to a vehicle can open for a moment, but the next vehicle in that lane may be centered or lean the other way.
 - The safe corridor (4.3) protects only a moving player; stopping is the player's choice.
@@ -222,7 +256,7 @@ Slowdown by speed: about 8 km/h/s at 300, 6 at 250, 4.3 at 200, 3 at 150, 2.1 at
 
 Each run records two values, each with its **own best** saved on the device:
 
-- **Top speed:** the highest speed reached in the run (km/h, one decimal, e.g. 297.4 km/h).
+- **Top speed:** the highest speed reached in the run (km/h, one decimal, e.g. 341.4 km/h). 300 km/h needs about 50 s of clean driving; the flat ceiling is 342 km/h and a long downhill gives up to about 365 km/h, so the record stays open-ended.
 - **Distance:** meters driven in the run, shown in km with two decimals (e.g. 4.37 km).
 
 A run can set a new best in one, both, or neither.
@@ -233,19 +267,19 @@ A run can set a new best in one, both, or neither.
 
 First seconds after that press (holding the accelerator):
 - The first vehicles spawn at 400 m (view distance at low speed, see 5.3).
-- A sedan at 130 km/h spawned at 400 m meets the player after about 6.6 s; by then the player is at about 150 km/h. A truck at 80 km/h meets them after about 8 s.
-- So the player gets 6–8 s to get going before the first pass. Phase 1 traffic is sparse (below), and the corridor (4.3) starts at the player's own position.
+- A sedan at 130 km/h spawned at 400 m meets the player after about 7.3 s (player at about 123 km/h). A truck at 80 km/h meets them after about 9.0 s (141 km/h), a 180 km/h sedan after 6.1 s (108 km/h).
+- So the player gets 6–9 s to get going before the first pass. Phase 1 traffic is sparse (below), and the corridor (4.3) starts at the player's own position.
 
 Difficulty grows with **time**, not distance. The densities below include the user's +40 % (`DensityScale` 1.4). Traffic is set as **density** (vehicles per km of road, all 4 lanes). The player meets vehicles at density × closing speed, so driving faster means more vehicles per second.
 
-| Phase | Time | Density (4 lanes) | Vehicles met per second at 100 / 250 km/h | Traffic | Road (see 6.5) |
+| Phase | Time | Density (4 lanes) | Vehicles met per second at 100 / 300 km/h | Traffic | Road (see 6.5) |
 |---|---|---|---|---|---|
-| 1 | 0 – 20 s | 11 per km | about 0.7 / 1.1 | single vehicles, mostly cars | gentle |
-| 2 | 20 – 60 s | 18 per km | about 1.1 / 2.0 | pairs; first buses and trucks | medium |
-| 3 | 60 – 120 s | 28 per km | about 1.8 / 2.9 | side-by-side rows with one corridor; truck columns in lane 4 | hard |
-| 4 | 120 s + | rises slowly to a cap of 45 per km | up to about 2.8 / 4.8 | many trucks and buses, tight gaps, fast cars in lane 1 | hardest |
+| 1 | 0 – 20 s | 11 per km | about 0.7 / 1.3 | single vehicles, mostly cars | gentle |
+| 2 | 20 – 60 s | 18 per km | about 1.1 / 2.1 | pairs; first buses and trucks | medium |
+| 3 | 60 – 120 s | 28 per km | about 1.8 / 3.3 | side-by-side rows with one corridor; truck columns in lane 4 | hard |
+| 4 | 120 s + | rises slowly to a cap of 45 per km | up to about 2.8 / 5.3 | many trucks and buses, tight gaps, fast cars in lane 1 | hardest |
 
-- Per lane this is the same as v0.3 (density × 4/3).
+- Per lane this is the same as v0.3 (density × 4/3). Phase 3 starts at 60 s, when a clean run is already above 300 km/h (300 km/h at 49 s), so the densest traffic meets the fastest player at the highest closing speeds.
 - Density rises smoothly, not in jumps.
 - Density is lower in tunnels and after blind spots, see 5.4.
 
@@ -285,21 +319,41 @@ The threshold equals a speed change of 4 m/s (about 14 km/h) for the player car,
 | Head-on, player stopped vs truck at 80 km/h | 22.2 m/s | 1.44 t | 32.0 | Game over |
 | Head-on, player stopped vs compact at 110 km/h | 30.6 m/s | 0.63 t | 19.4 | Game over |
 | Side-swipe of a truck, 2 m/s side speed | 2.0 m/s | 1.44 t | 2.9 | Survive, −23 km/h |
-| Side hit on a truck at full steering (7 m/s) | 7.0 m/s | 1.44 t | 10.1 | Game over |
-| Side hit on a sedan at full steering (7 m/s) | 7.0 m/s | 0.77 t | 5.4 | Survive, −43 km/h |
+| Side hit on a truck at full steering (9.8 m/s) | 9.8 m/s | 1.44 t | 14.1 | Game over |
+| Side hit on a sedan at 5 m/s side speed | 5.0 m/s | 0.77 t | 3.9 | Survive, −31 km/h |
+| Side hit on a sedan at full steering (9.8 m/s) | 9.8 m/s | 0.77 t | 7.6 | Game over |
+| Head-on with a motorbike, player 100 km/h, bike 120 km/h | 61.1 m/s | 0.21 t | 13.1 | NonLethal: loss = clamp(105, 40 %, 60 %) = 60 km/h, 40 km/h left |
+| Head-on with a motorbike, player 300 km/h, bike 200 km/h | 138.9 m/s | 0.21 t | 29.8 | NonLethal: loss = clamp(238, 120, 180) = 180 km/h, 120 km/h left |
+| Side-swipe of a motorbike, player 200 km/h, 2 m/s side speed | 2.0 m/s | 0.21 t | 0.43 | NonLethal: loss = 40 % = 80 km/h, 120 km/h left |
 | Rail, flat touch, 1 m/s side speed | 1.0 m/s | 1.5 t | 1.5 | Survive, −12 km/h |
 | Rail, 3 m/s side speed | 3.0 m/s | 1.5 t | 4.5 | Survive, −36 km/h |
 | Rail, 7 m/s side speed | 7.0 m/s | 1.5 t | 10.5 | Game over |
-| Curve R 720 m at 306 km/h (downhill only), full steering, 1.5 m/s net into the outer rail (6.3) | 1.5 m/s | 1.5 t | 2.3 | Survive, −18 km/h, then scrape until slow enough |
-| Curve R 470 m at 306 km/h (downhill only), full steering, 7.8 m/s net (6.3) | 7.8 m/s | 1.5 t | 11.7 | Game over |
+| Curve R 1000 m at 342 km/h (flat ceiling), full steering, 0.3 m/s net into the outer rail (6.3) | 0.3 m/s | 1.5 t | 0.5 | Survive, −4 km/h, then scrape until slow enough |
+| Curve R 720 m at 342 km/h, full steering, 4.5 m/s net (6.3) | 4.5 m/s | 1.5 t | 6.8 | Game over |
+| Curve R 600 m at 342 km/h, full steering, 7.4 m/s net (6.3) | 7.4 m/s | 1.5 t | 11.1 | Game over |
 
 - Hitting the front of any vehicle is always game over (even stopped, at least 3× the threshold).
 - Rail: survive below 4 m/s side speed, game over above.
-- A truck or bus side hit ends the run above about 4.2 m/s side speed, a compact or sedan only above about 7.8 m/s.
+- A truck or bus side hit ends the run above about 4.2–4.4 m/s side speed, a sedan above about 7.7 m/s, a compact above about 9.5 m/s. All classes are in 4.1.4. Motorbikes are `NonLethal` (below).
+
+**Non-lethal vehicles: motorbikes (user decision, flag `NonLethal` in the class row)**
+
+A contact with a motorbike, even head-on, is **never game over**. It costs a large part of the speed. Everything else (all other vehicles, rails, walls, parapets) keeps the impulse rule above.
+
+- **Impulse** is still computed (`m_red` 0.21 t) and drives the feedback, but the game-over test is skipped for this class.
+- **Slowdown:** `loss = clamp(8 km/h × J, 0.40 × v, 0.60 × v)` and `v_new = v − loss`. So the car always loses **40–60 % of its speed**: at least 40 % so it is never a free scratch, at most 60 % so the car is never stopped dead in the traffic stream (a stopped car would be killed by the next vehicle, which is game over by another way). `J` near the top of the range (hard head-on) gives 60 %, a gentle side touch 40 %. The loss is applied once at contact, never below 0.
+- **The bike:** removed from traffic at once. A short debris burst (bike and rider as 4–6 simple pieces flung ahead and sideways, fading in 1.5 s, no collision, no ragdoll).
+- **Push-off:** side speed 1.5 m/s away from the bike (`sign(x_player − x_bike)`; toward the road centre if the two are within 0.05 m). Steering works at once.
+- **Feedback:** a strong camera shake at the level of the strongest survived hit (J = 6), 0.6 s, with a strong haptic pulse. It is a hit shake, so the 200 km/h throttle rule does not apply; game over still zeroes all shake (not triggered here).
+- **No chaining:** a motorbike never spawns within **600 m** of another motorbike (road distance; 4.3 s at 500 km/h closing). Safety net: a second contact with a `NonLethal` vehicle within **4 s** of the first is game over (plowing through a group of riders).
+- **Anti-exploit (farming bikes to brake in a tight curve):**
+  - Bikes are 0 / 1 / 3 / 4 % of the traffic (at most about 1.8 per km, 4.1.2), 600 m apart, and ride at a random side offset of up to ±1.4 m, so the player cannot place a hit where one is needed.
+  - A deliberate hit throws away 40–60 % of the speed, which takes **about 30–40 s** to rebuild (from 205 km/h to 300 km/h: about 31 s; from 137 km/h: about 40 s), against 7.1 s of coasting to slow from 342 to 307 km/h. Both records suffer: the run clock keeps density rising while the car is slow.
+  - It stays what it is: a lucky escape that costs a lot, not a tactic.
 
 ### 2.6 HUD and game over screen
 
-**During the run:** speed, large (`297 km/h`); distance (`4.37 km`); pause icon. Nothing else.
+**During the run:** speed, large (`297 km/h`), on a dial with scale **0–400 km/h** (flat ceiling 342, practical downhill top about 365, theory 382, so the needle never pegs); distance (`4.37 km`); pause icon. Nothing else.
 
 **Game over screen:** this run's top speed (one decimal) and distance; best top speed and best distance, each with a "New best" mark when beaten; a big Retry button. Retry puts the car back at standstill in under 1 s.
 
@@ -309,16 +363,18 @@ The threshold equals a speed change of 4 m/s (about 14 km/h) for the player car,
 2. Road geometry: straights, clothoid curves, hills, overpasses, viaducts, tunnels (6). **Build order:** straights + curves → hills → overpasses → viaducts → tunnels, each playable before the next.
 3. MVP map props from 3.2.
 4. Chase camera, vehicle fade-in at the spawn distance, road drawn further (5).
-5. Red Porsche 911 (992) player car.
+5. Red Porsche 911 Carrera S (991) player car (decision 52).
 6. Two-thumb touch controls, landscape only; keyboard for the editor.
 7. Car force model with grade and tyre scrub (2.2). Start at 0 km/h, no cap, no minimum.
 8. Curve drift (6.3).
-9. 5 oncoming vehicle types (4.1) with side offsets and wander (4.2).
+9. 16 vehicle classes with 35 first-wave variants (4.1; the 7 old classes first, then the 9 new rows), side offsets and wander (4.2).
 10. Spawning by density and phase, safe corridor (4.3), hidden-vehicle rule (5.5), sight rules per section (5.4).
-11. Impulse collisions with vehicles, rails, walls, parapets (2.5).
+11. Impulse collisions with vehicles, rails, walls, parapets; `NonLethal` motorbikes with the 40–60 % slowdown (2.5).
 12. Records: top speed and distance, each best saved locally.
 13. HUD and game over screen (2.6).
 14. Sound: engine (pitch follows speed), passing vehicles (Doppler), tunnel echo, scrape, crash.
+
+Test aids (decision 51): the `autodrive` flag file counts only for 10 minutes after its last write, the app deletes an older one at start, and a TEST mark shows bottom-left while it is active. Test scripts remove it when they end.
 
 Not in MVP: menus beyond a start screen, settings, brake, gears, damage model, night, rain.
 
@@ -326,7 +382,7 @@ Not in MVP: menus beyond a start screen, settings, brake, gears, damage model, n
 
 - Brake (for example, a second zone on the right half).
 - Gears and an engine sound with shifts.
-- More vehicles from 4.1 (motorbike, sports car, caravan, car transporter, police).
+- The 27 second-wave variants of 4.1.3.
 - Vehicles that change lanes, flash headlights or honk.
 - Trucks that lean onto the lane line in curves.
 - Crosswind gusts on viaducts (a short side push).
@@ -334,6 +390,7 @@ Not in MVP: menus beyond a start screen, settings, brake, gears, damage model, n
 - Construction zones, exits and on-ramps.
 - Day / night / rain.
 - Settings: steering sensitivity, left-handed layout, sound, haptics.
+- Slowing fast traffic in tight curves.
 - Other 911 colors or variants.
 - "Engine warm-up" power boost, only if top-speed records still get stuck despite downhills.
 
@@ -384,32 +441,137 @@ Props beyond the rails are scenery only and never block sight in curves (5.4).
 
 ## 4. Vehicles
 
-### 4.1 Roster
+### 4.1 Classes and variants
 
-Variety (user request): Hatchback and Long van reuse the Compact and Van models at their natural size; extra model files named `Compact2.glb`, `Sedan2.glb` and so on are picked at random; every vehicle gets one of 17 paint colours (no red or orange), never the same as the last one of its type. Buses and trucks keep their livery.
+**Two levels, to keep Core simple:**
 
-Sizes and masses are real-world values; the designer builds models to this scale. Speed is the vehicle's own speed and does not depend on the player. Spawn weights are relative per phase (0 = never).
+- A **class** is what Core needs: a box (length, width), a height, a mass, an own-speed range, lane shares, a "tall" flag, spawn weights per phase and any special rule. One class = one row in the Core table.
+- A **variant** is only a model and paint on top of a class. Same physics, same collision box. Core knows a variant only by its name, its class and its **share inside the class**. The only exceptions: police and ambulance variants carry their own speed range and lane shares (4.1.3), and the bike class has the `NonLethal` flag.
+- Model fit: a variant's model should be within about 8 % of the class length (and within 5 % of the class width). The collision box is the class box, never the model. A model that does not fit goes to another class.
+- Height is only used for the hiding rule (5.5), so a class height is the height of its tallest variant. **Tall** = class height ≥ 2.4 m.
+- Speeds follow real Autobahn behaviour: trucks over 3.5 t are limited to 80 km/h (drivers go up to 90), coaches and buses 100 km/h, cars with caravan or trailer 80 km/h (100 with a permit), everything else is free. Mopeds, tractors and other slow vehicles are not allowed on the Autobahn and are not in the game.
+- Paint: no red or orange traffic (decision 24); the 911 stays the only red car. Police: blue and silver. Ambulance: white with yellow-green markings.
 
-| Vehicle | Length | Width | Height | Mass | Own speed | Lanes | P1 | P2 | P3 | P4 | MVP |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| Compact car | 3.7 m | 1.7 m | 1.5 m | 1.1 t | 110–130 km/h | 2–4 | 22 | 17 | 12 | 9 | MVP |
-| Hatchback (Golf size) | 4.15 m | 1.76 m | 1.45 m | 1.3 t | 115–145 km/h | 2–4, sometimes 1 | 22 | 18 | 13 | 10 | MVP |
-| Sedan | 4.8 m | 1.85 m | 1.45 m | 1.6 t | 130–180 km/h | 1–3 | 28 | 24 | 20 | 17 | MVP |
-| Van | 5.5 m | 2.0 m | 2.5 m | 2.5 t | 110–140 km/h | 3–4, sometimes 2 | 14 | 14 | 14 | 14 | MVP |
-| Long van | 5.9 m | 2.0 m | 2.55 m | 3.0 t | 100–130 km/h | 3–4, sometimes 2 | 6 | 8 | 8 | 8 | MVP |
-| Bus (coach) | 12 m | 2.55 m | 3.8 m | 18 t | 90–100 km/h | 4, sometimes 3 | 0 | 8 | 12 | 15 | MVP |
-| Truck (semi) | 16.5 m | 2.55 m | 4.0 m | 35 t | 80–90 km/h | 4, sometimes 3 | 0 | 10 | 18 | 25 | MVP |
-| Motorbike | 2.2 m | 0.8 m | 1.4 m | 0.25 t | 120–200 km/h | any | 0 | 0 | 5 | 8 | Later |
-| Sports car | 4.5 m | 1.9 m | 1.3 m | 1.5 t | 200–250 km/h | 1 | 0 | 0 | 5 | 10 | Later |
-| Car with caravan | 11 m | 2.3 m | 2.6 m | 3.0 t | 80–100 km/h | 4 | 0 | 5 | 8 | 8 | Later |
-| Car transporter | 20 m | 2.55 m | 4.0 m | 30 t | 80 km/h | 4 | 0 | 0 | 5 | 10 | Later |
-| Police car | 4.8 m | 1.85 m | 1.5 m | 1.7 t | 150–200 km/h | any | 0 | 0 | 3 | 5 | Later |
+#### 4.1.1 Class table
 
-Lane choice inside the allowed lanes: trucks and buses 80 % lane 4 / 20 % lane 3; vans 45 % lane 4, 45 % lane 3, 10 % lane 2; compacts even over lanes 2–4; sedans 40 % lane 1, 35 % lane 2, 25 % lane 3.
+Lengths, widths and heights in m, mass in t. The first seven rows keep their old values (the developer already uses them), with two small changes: Bus height 3.8 → 4.0 (double-decker, used only for hiding) and Long van height 2.55 → 2.6 (ambulance).
 
-Traffic does not slow in curves in the MVP: the tightest game curve (R 470 m) needs only 0.25 g at 130 km/h, which is normal driving.
+| Class | Length | Width | Height | Mass | Own speed | Tall | Lane shares L1 / L2 / L3 / L4 (%) | Core row |
+|---|---|---|---|---|---|---|---|---|
+| Compact | 3.7 | 1.7 | 1.55 | 1.1 | 110–130 km/h | no | 0 / 34 / 33 / 33 | exists |
+| Hatchback | 4.15 | 1.76 | 1.45 | 1.3 | 115–145 km/h | no | 10 / 30 / 30 / 30 | exists |
+| Sedan | 4.8 | 1.85 | 1.5 | 1.6 | 130–180 km/h | no | 40 / 35 / 25 / 0 | exists |
+| Van | 5.5 | 2.0 | 2.5 | 2.5 | 110–140 km/h | yes | 0 / 10 / 45 / 45 | exists |
+| Long van | 5.9 | 2.0 | 2.6 | 3.0 | 100–130 km/h | yes | 0 / 10 / 45 / 45 | exists |
+| Bus | 12.0 | 2.55 | 4.0 | 18 | 90–100 km/h | yes | 0 / 0 / 20 / 80 | exists |
+| Semi truck | 16.5 | 2.55 | 4.0 | 35 | 80–90 km/h | yes | 0 / 0 / 20 / 80 | exists (called "Truck") |
+| SUV | 4.9 | 1.92 | 1.8 | 2.1 | 120–160 km/h | no | 15 / 40 / 35 / 10 | **new row** |
+| Sports car | 4.5 | 1.9 | 1.3 | 1.5 | 180–240 km/h | no | 90 / 10 / 0 / 0 | **new row** |
+| MPV | 4.6 | 1.85 | 1.7 | 1.8 | 110–150 km/h | no | 0 / 30 / 40 / 30 | **new row** |
+| Motorbike | 2.2 | 0.8 | 1.4 | 0.25 | 120–200 km/h | no | 25 / 25 / 25 / 25 | **new row** + `NonLethal` |
+| Motorhome | 7.5 | 2.3 | 3.2 | 3.5 | 90–110 km/h | yes | 0 / 0 / 30 / 70 | **new row** |
+| Car with caravan | 11.0 | 2.3 | 2.6 | 3.0 | 80–100 km/h | yes | 0 / 0 / 20 / 80 | **new row** |
+| Rigid truck | 9.0 | 2.5 | 3.8 | 14 | 80–90 km/h | yes | 0 / 0 / 15 / 85 | **new row** |
+| Long combination | 19.0 | 2.55 | 4.0 | 36 | 80–90 km/h | yes | 0 / 0 / 20 / 80 | **new row** |
+| Articulated bus | 18.0 | 2.55 | 3.4 | 20 | 85–100 km/h | yes | 0 / 0 / 20 / 80 | **new row** |
 
-**Player car:** Porsche 911 (992), red. About 4.5 m long, 1.85 m wide, 1.3 m high, 1.5 t.
+Nine classes need a new Core row (SUV, Sports car, MPV, Motorbike, Motorhome, Car with caravan, Rigid truck, Long combination, Articulated bus). The seven old classes need no Core change except the two heights. Every variant in 4.1.3 is only a new model.
+
+Mass notes: a class mass is a typical loaded value. Rigid trucks range 7.5–26 t, but `m_red` then varies only between 1.2 and 1.4 t against the player's 1.5 t, which changes no outcome in 2.5. The car with caravan uses the whole combination (1.8 t car + 1.2 t caravan); a head-on hit lands on the car, so this is a small over-estimate and fine.
+
+#### 4.1.2 Spawn weights
+
+Relative weight per phase. Each phase sums to **100**, so the density per km (2.4) is unchanged.
+
+| Class | P1 | P2 | P3 | P4 |
+|---|---|---|---|---|
+| Compact | 14 | 10 | 6 | 4 |
+| Hatchback | 22 | 17 | 12 | 8 |
+| Sedan | 26 | 19 | 15 | 12 |
+| SUV | 14 | 12 | 9 | 7 |
+| Sports car | 2 | 2 | 4 | 6 |
+| MPV | 6 | 5 | 4 | 3 |
+| Van | 10 | 8 | 7 | 6 |
+| Long van | 6 | 5 | 5 | 5 |
+| Motorbike | 0 | 1 | 3 | 4 |
+| Motorhome | 0 | 1 | 2 | 2 |
+| Car with caravan | 0 | 3 | 4 | 3 |
+| Rigid truck | 0 | 4 | 8 | 10 |
+| Semi truck | 0 | 7 | 12 | 17 |
+| Long combination | 0 | 1 | 3 | 4 |
+| Bus | 0 | 4 | 5 | 7 |
+| Articulated bus | 0 | 1 | 1 | 2 |
+| **Sum** | **100** | **100** | **100** | **100** |
+| of which heavy (rigid, semi, combination, bus, articulated) | 0 | 17 | 29 | 40 |
+| of which tall | 16 | 34 | 47 | 56 |
+
+- The heavy share is the same as before (trucks and buses only from phase 2: 0 / 17 / 29 / 40 %). Phase 1 has no heavy vehicle, motorbike, motorhome or caravan, so the first seconds stay simple.
+- The tall share is higher than before because vans, motorhomes and caravans count; the hiding rule (5.5) covers all of them.
+- The lane for a vehicle is picked by the lane shares in 4.1.1.
+
+**Variant choice:** first the class by weight, then the variant by its share inside the class: **equal shares**, except police (5 % of Sedan) and ambulance (5 % of Long van). So police are about 1 % and ambulances about 0.3 % of all traffic.
+
+#### 4.1.3 Variants (62)
+
+★ = first wave (the designer sources these first, 35 in all). The rest come when time allows. A class works with a single variant, so the game is playable after wave one.
+
+| Class | Variants |
+|---|---|
+| Compact (3.7 m) | ★ City car (500 / up! type), Microcar (Twingo / ForFour type) |
+| Hatchback (4.15 m) | ★ Supermini (Polo / Corsa type), ★ Golf-class hatchback, Hot hatch |
+| Sedan (4.8 m) | ★ Sedan (Passat / 3-series type), ★ Estate (wagon), Executive sedan (5-series / E-class), Liftback (Octavia / Arteon type), ★ Taxi (cream estate or sedan), ★ Police car (blue / silver; speed 150–200 km/h, lanes L1 / L2 only) |
+| SUV (4.9 m) | ★ Mid SUV (X3 / GLC type), Compact SUV, ★ Large SUV (Touareg / X5 type), ★ Pickup (double cab), Pickup with hardtop |
+| Sports car (4.5 m) | ★ Coupe, ★ Convertible, Roadster, GT |
+| MPV (4.6 m) | ★ Minivan (Touran / Sharan type), MPV (Scenic / Zafira type) |
+| Van (5.5 m) | ★ Panel van (Transporter / Vito type), ★ Delivery van, ★ Camper van (pop-top), Tradesman van with roof rack |
+| Long van (5.9 m) | ★ Long panel van (Sprinter type), Minibus (9 seats), High-roof long van, ★ Ambulance (white / yellow-green; speed 130–160 km/h, lanes L1 / L2 only) |
+| Motorbike (2.2 m) | ★ Sport bike, ★ Touring bike, Naked bike, Adventure bike, Cruiser |
+| Motorhome (7.5 m) | ★ Coachbuilt motorhome, Integrated motorhome |
+| Car with caravan (11 m) | ★ SUV with caravan, ★ Estate with caravan, Minivan with caravan |
+| Rigid truck (9.0 m) | ★ Box truck (12 t), ★ Curtainsider, ★ Dump truck (3-axle), Flatbed with load, Beverage truck, Concrete mixer, Rigid tanker |
+| Semi truck (16.5 m) | ★ Box semi, ★ Curtain semi, ★ Container semi, ★ Tanker semi, Flatbed semi, Reefer semi, Silo semi |
+| Long combination (19 m) | ★ Swap-body combination (Wechselbrücke), ★ Car transporter, Curtain combination |
+| Bus (12 m) | ★ Coach, Double-decker coach, ★ Line bus (intercity) |
+| Articulated bus (18 m) | ★ Articulated line bus, Articulated coach |
+
+Counting: 62 variants in 16 classes; 35 are first wave.
+
+**Traffic and curves:** traffic does not slow in curves in the MVP: the tightest game curve (R 600 m) needs only 0.22 g at 130 km/h, which is normal driving. Fast vehicles (sports car at 240 km/h would need 0.75 g) are not slowed in curves in the MVP; slowing traffic in curves is on the later list.
+
+**Player car:** Porsche 911 Carrera S (991), red (model by Mona × Supercars, CC BY 4.0). About 4.5 m long, 1.85 m wide with mirrors, 1.3 m high, 1.5 t.
+
+**Special rules (table data, one code branch only):**
+
+1. **`NonLethal` (Motorbike):** a contact never ends the run; it costs 40–60 % of the speed (2.5). One boolean in the class row.
+2. **Speed and lane override (police, ambulance):** these two variants use their own speed range and lane shares instead of the class ones, so they come as occasional fast vehicles in the passing lanes. Two optional fields in the variant row. No siren or lights needed.
+3. **Never twice in a row:** a variant (and its paint) does not follow itself in the same class (as decision 34).
+
+#### 4.1.4 Impulse check for the new classes (2.5)
+
+Player 1.5 t, threshold `J ≥ 6.0`. A side hit ends the run above the side speed `6.0 / m_red`. The max side speed is 9.8 m/s from about 100 km/h on.
+
+| Class | m_red | Side hit ends the run above | At full steering (9.8 m/s) | Head-on, player stopped, slowest vehicle |
+|---|---|---|---|---|
+| Compact | 0.63 t | 9.5 m/s | game over (just) | J = 19.4, game over |
+| Hatchback | 0.70 t | 8.6 m/s | game over | J = 22.2 |
+| Sedan | 0.77 t | 7.7 m/s | game over | J = 28.0 |
+| SUV | 0.88 t | 6.9 m/s | game over | J = 29.2 |
+| Sports car | 0.75 t | 8.0 m/s | game over | J = 37.5 |
+| MPV | 0.82 t | 7.3 m/s | game over | J = 25.0 |
+| Van | 0.94 t | 6.4 m/s | game over | J = 28.6 |
+| Long van | 1.00 t | 6.0 m/s | game over | J = 27.8 |
+| Motorbike | 0.21 t | `NonLethal`: never game over | `NonLethal` | J = 7.1 (bike at 120 km/h), no game over: 40–60 % speed loss |
+| Motorhome | 1.05 t | 5.7 m/s | game over | J = 26.2 |
+| Car with caravan | 1.00 t | 6.0 m/s | game over | J = 22.2 |
+| Rigid truck | 1.35 t | 4.4 m/s | game over | J = 30.1 |
+| Semi truck | 1.44 t | 4.2 m/s | game over | J = 32.0 |
+| Long combination | 1.44 t | 4.2 m/s | game over | J = 32.0 |
+| Bus | 1.38 t | 4.3 m/s | game over | J = 34.6 |
+| Articulated bus | 1.40 t | 4.3 m/s | game over | J = 32.9 |
+
+- **Head-on is always game over, for every class except the `NonLethal` motorbike**, even with the player standing still and the slowest vehicle. Every car and truck is above J = 19 (3× the threshold). The bike has J = 7.1 at its slowest, but never ends the run.
+- **Side hits:** for heavy classes a side hit ends the run above 4.2–4.4 m/s (about 45 % steering), so a truck or bus side-swipe is survivable only as a gentle touch. For light cars the limit is 6.9–9.5 m/s, which a hard lane change at speed reaches. This replaces the old line that compacts and sedans survive any side hit (written for the 7 m/s steering).
+- Speed loss of a survived hit (`−8 km/h × J`, 2.5) is larger for heavy classes: a 2 m/s side-swipe of a semi loses 23 km/h, of a compact 10 km/h.
 
 ### 4.2 Side offset inside the lane
 
@@ -423,12 +585,21 @@ T ~ uniform(8, 15) s, φ ~ uniform(0, 2π)    wander period and phase
 o(t) = clamp(o_base + A · sin(2π t / T + φ), −o_max, +o_max)
 ```
 
-| Vehicle | Width | o_max | Max wander speed (2πA/T) |
+| Class | Width | o_max | Max wander amplitude A |
 |---|---|---|---|
-| Compact | 1.7 m | 0.93 m | 0.21 m/s |
-| Sedan | 1.85 m | 0.85 m | 0.19 m/s |
-| Van | 2.0 m | 0.78 m | 0.18 m/s |
-| Bus / truck | 2.55 m | 0.50 m | 0.12 m/s |
+| Compact | 1.7 m | 0.92 m | 0.28 m |
+| Hatchback | 1.76 m | 0.90 m | 0.27 m |
+| Sedan, MPV | 1.85 m | 0.85 m | 0.26 m |
+| SUV | 1.92 m | 0.82 m | 0.25 m |
+| Sports car | 1.9 m | 0.83 m | 0.25 m |
+| Van, Long van | 2.0 m | 0.78 m | 0.23 m |
+| Motorhome, car with caravan | 2.3 m | 0.63 m | 0.19 m |
+| Rigid truck | 2.5 m | 0.53 m | 0.16 m |
+| Semi, long combination, bus, articulated bus | 2.55 m | 0.50 m | 0.15 m |
+| Motorbike | 0.8 m | 1.38 m | 0.30 m (capped) |
+
+- General cap: `A ≤ min(0.3 × o_max, 0.30 m)`. With `T ≥ 8 s` the wander speed `2πA/T` stays under 0.24 m/s for every class. Only the motorbike hits the 0.30 m cap (0.3 × o_max would be 0.41 m).
+- A motorbike can ride close to a lane line, but the corridor (4.3) keeps `W_c / 2 = 1.425 m` from every vehicle body, bikes included, so no extra rule is needed.
 
 - Wander is slow (under 0.25 m/s), so a gap the player sees stays readable.
 - Bodies stay inside the lane lines. Touching the line is not allowed in the MVP; trucks leaning onto the line in curves is a later idea.
@@ -454,9 +625,10 @@ Replaces the v0.3 free-lane rule. It uses real gaps in meters.
 - **Corridor moves slowly:** `|dx_c/dt| ≤ 4 m/s` on straights (57 % of the max side speed, so a player who reacts 1 s late still makes it). In curves it moves only outward or not at all when the current `s_hold > 0.3` (6.3), since the player's inward reach is smaller there.
 - **At run start** the corridor begins at the player's position.
 - **Meet time** for a vehicle at road distance `Δd` ahead: `Δd / (v_player + v_vehicle)`, using the current player speed. If the player speed changes by more than 20 % since a vehicle was placed, the spawner rechecks vehicles not yet within 3 s of the player and moves the corridor plan, never moving a placed vehicle.
-- Vehicles in the same lane keep their speed (no overtaking). A faster vehicle never spawns right behind a slower one in the same lane.
+- Vehicles in the same lane keep their speed (no overtaking). **Catch-up rule:** a faster vehicle may spawn behind a slower one in the same lane only if it cannot reach it before the slower one passes the player: `gap ≥ (v_fast − v_slow) × t_meet_slow + 20 m`, with `t_meet_slow` = meet time of the slower vehicle (4.3 above). Example, player at 200 km/h, spawn at 500 m: a 240 km/h sports car behind a 90 km/h truck needs a gap of about 280 m; behind a 130 km/h car about 190 m. If the gap does not fit, the spawner picks another lane or waits.
 - Trucks and buses come in columns of 2–3 in lane 4 from phase 3.
 - Gaps narrower than the corridor (threading, 4.2) appear naturally and are allowed; only the corridor is guaranteed.
+- Motorbikes (`NonLethal`) keep at least 600 m of road distance to each other at spawn (2.5).
 
 ---
 
@@ -464,10 +636,13 @@ Replaces the v0.3 free-lane rule. It uses real gaps in meters.
 
 ### 5.1 Chase camera
 
-- About 6–7 m behind, 2.75 m high, looking slightly down the road. Starting values.
-- Horizontal field of view at least 75° (on a 20:9 phone, a vertical FOV of 50° gives about 92° horizontal). Widens a little with speed.
+- About 6–7 m behind, 2.75 m high at standstill, looking slightly down the road. The developer's named constants are the truth.
+- Horizontal field of view at least 75° (on a 20:9 phone, a vertical FOV of 50° gives about 92° horizontal). The speed FOV widens it from 80° to 92° with speed.
+- **Speed camera (user decision, replaces the throttle camera of decision 45):** camera height, distance and pitch follow the **speed** through one smoothstep over 0–300 km/h with a low-pass of 0.6 s. At 300 km/h and above the camera is **0.5 m lower, 1.0 m closer and tilted 4.5° further down** (was 3°; the user wants the pitch range about 50 % larger, as an intended limit of the view at high speed). No accelerator-dependent camera code.
+- At full effect the camera is 2.25 m high: still above cars (1.45 m), below trucks, so the blind spot behind trucks stays (5.5). The crest rule uses 2.25 m (5.4).
+- To check on the tablet at 300 km/h: the horizon and the far road (vehicles at the spawn distance, up to 604 m, 5.3) must stay in frame with the extra pitch. If they do not, reduce the pitch range, not the view distance.
 - The camera follows the car's side position with a small delay, and turns with the road tangent and the car's yaw.
-- **Shake (user decision):** camera shake and road vibration only while the accelerator is held and the speed is above **150 km/h**, scaled by speed and eased in and out over 0.3 s. None at low speed, at steady speed without throttle, or when coasting. Hits and crashes still shake the camera.
+- **Shake (user decision):** continuous camera shake and road vibration only while the accelerator is held and the speed is at least **180 km/h**, growing to full at **340 km/h** (about the flat ceiling) and staying full above it, scaled by `ShakeScale` **0.52**, eased in and out over 0.3 s. None at low speed, at steady speed without throttle, or when coasting. Hits and crashes still shake the camera; game over zeroes all shake.
 - The camera sees over normal cars, not over buses and trucks (5.5).
 
 ### 5.2 Reaction-time rule
@@ -477,17 +652,24 @@ Replaces the v0.3 free-lane rule. It uses real gaps in meters.
 
 ### 5.3 Spawn distance and draw distance
 
-- **Vehicles spawn** at `max(400 m, closing speed × 3.5 s)` ahead along the road, and fade in over the first 30 m. 3.5 s at spawn leaves 3 s after the fade.
+- **Vehicles spawn** at `max(400 m, closing speed × 3.5 s)` ahead along the road, **computed per vehicle** with its own speed: `closing = v_player + v_vehicle`. They fade in over the first 30 m. 3.5 s at spawn leaves 3 s after the fade.
+- The fastest vehicle is the 240 km/h sports car (motorbikes and police 200 km/h). The player can reach 342 km/h on the flat, about 363 km/h after a long downhill and 382 km/h in theory. Spawn distance, with `closing = v_player + v_vehicle`:
 
-| Player speed | Max closing (vs 180 km/h sedan) | Spawn distance |
-|---|---|---|
-| 0 – 230 km/h | up to 410 km/h | 400 m |
-| 250 km/h | 430 km/h | 420 m |
-| 247 km/h (flat ceiling) | 427 km/h | 415 m |
-| 272 km/h (4 % downhill ceiling) | 452 km/h | 440 m |
+| Player speed | vs 240 km/h sports car | Spawn distance | vs 180 km/h sedan (spawn distance) |
+|---|---|---|---|
+| 0 – 160 km/h | up to 400 km/h | 400 m | 400 m |
+| 250 km/h | 490 km/h | 476 m | 418 m |
+| 300 km/h | 540 km/h | 525 m | 467 m |
+| 342 km/h (flat ceiling) | 582 km/h | 566 m | 508 m |
+| 363 km/h (after a 2 km downhill) | 603 km/h | 586 m | 528 m |
+| 382 km/h (theory) | 622 km/h | 604 m | 546 m |
+
+- At 342 km/h against a 180 km/h sedan the closing speed is 522 km/h (145 m/s). The readable time after the 30 m fade-in is at least 3.0 s in every row.
+- Slow vehicles (trucks at 80 km/h) spawn closer, but never under 400 m.
+- The spawner must create vehicles up to about 610 m ahead, so the active zone is 610 m ahead of the player.
 
 - **Road and terrain** are drawn to about 1.5 km with light distance fog (the developer may cut it to 1 km if the Tab S7 drops below 60 fps). Only vehicles fade in at the spawn distance. So curves, crests and tunnel portals are visible long before traffic, and the player can coast early enough (6.3).
-- At the start (0 km/h) the spawn distance is 400 m and the warning time is 8 s or more.
+- At the start (0 km/h) the spawn distance is 400 m and the warning time is 8 s or more. At 363 km/h the 1.5 km of drawn road is 14.9 s ahead.
 - Daytime headlights on all oncoming vehicles are the early cue at high speed. To be checked on a real device.
 
 ### 5.4 Sight distance per section type
@@ -495,8 +677,8 @@ Replaces the v0.3 free-lane rule. It uses real gaps in meters.
 | Section | What could cut sight | How the 3 s rule is kept |
 |---|---|---|
 | Straight | nothing | spawn distance (5.3) |
-| Curve | inner roadside, and the camera view angle | No sight-blocking objects (trees, walls, cuttings higher than 1 m) within 15 m of the inner rail in curves with R < 3000 m. Bearing of a vehicle at distance S on a curve is about S / (2R): at R 470 m and S 470 m it is 29°, inside the 37.5° half-FOV. |
-| Crest | the hill itself | Crest radius **≥ 15 000 m** (RAA minimum for the top design class is about 13 000 m). Sight over a crest with camera height 2.75 m and target height 1.0 m: `S = (√(2·2.75) + √(2·1.0)) · √R` = 460 m at R 15 000 m, which is 3.3 s at the downhill-ceiling closing speed of 507 km/h. Extra rule: no side-by-side rows (only one corridor) within 300 m after a crest top, in all phases. |
+| Curve | inner roadside, and the camera view angle | No sight-blocking objects (trees, walls, cuttings higher than 1 m) within 15 m of the inner rail in curves with R < 3000 m. Bearing of a vehicle at distance S on a curve is about S / (2R): at R 600 m and S 600 m it is 29°, inside the 37.5° half-FOV. |
+| Crest | the hill itself | Crest radius **≥ 20 000 m** (the RAA minimum for the top design class is about 13 000 m). Sight over a crest with the speed camera at full effect (eye height 2.25 m) and a target height of 1.0 m: `S = (√(2·2.25) + √(2·1.0)) · √R` = **500 m** at R 20 000 m. Against the fastest vehicle that is 3.1 s at the flat ceiling (342 + 240 = 582 km/h), 3.0 s at the practical 363 km/h and 2.9 s only at the theoretical 382 km/h (rare: a crest taken at that speed needs a long downhill before it). At low speed (eye 2.75 m) it is 532 m. With R 22 000 m the margin would be 3.0 s even at 382 km/h; the developer already uses 20 000 m, so this stays unless a playtest shows blind crests. Extra rule: no side-by-side rows (only one corridor) within 300 m after a crest top, in all phases. |
 | Sag (dip) | nothing by day | no rule |
 | Tunnel | walls in a curve | Tunnels are **straight** (no curve, no crest inside) and lit, so sight = full length. No haze inside. Density inside × 0.7. 200 m straight before each portal so the portal and the traffic behind it are seen head-on. Camera exposure adapts over 0.5 s at portals; tunnel lights bright enough that vehicles stay readable during it. |
 | Viaduct | nothing | Parapet on both sides = rail (infinite mass). No sight rule. |
@@ -505,10 +687,14 @@ Replaces the v0.3 free-lane rule. It uses real gaps in meters.
 
 Combination rules: no crest inside a curve with R < 1500 m; no tunnel portal within 500 m after a crest top.
 
-### 5.5 Hidden vehicles behind trucks and buses
+### 5.5 Hidden vehicles behind tall vehicles
 
-- Behind a tall vehicle (van, bus, truck) in the same lane, leave at least 1.5 s closing time (at the current player speed) before the next vehicle.
+Every class with the **tall** flag (4.1.1: van, long van, motorhome, car with caravan, rigid truck, semi, long combination, bus, articulated bus) can hide what drives behind it in the same lane. About 16 % of phase 1 traffic and 56 % of phase 4 traffic is tall, so this rule does a lot of work.
+
+- Behind a tall vehicle in the same lane, leave at least 1.5 s closing time (at the current player speed) before the next vehicle.
+- A **light vehicle or a motorbike** right behind a tall one is the worst case (small, and fast ones close the gap): use 2.0 s for sports cars, police, ambulances and motorbikes behind a tall vehicle.
 - Never let a tall vehicle hide a vehicle that borders the corridor.
+- Not tall (cannot hide anything): Compact, Hatchback, Sedan, SUV, Sports car, MPV, Motorbike.
 
 ---
 
@@ -528,12 +714,12 @@ Everything (lanes, rails, vehicles, the player) lives in road coordinates `(d, x
 
 - **Transitions: clothoids.** Curvature changes linearly with distance, so drift (6.3) builds up smoothly. A simple arc would jump from 0 to full drift in one frame. Clothoids are also simple here: `κ(d)` is piecewise linear.
 - A curve = clothoid in (κ from 0 to 1/R over length L) + arc (length R·θ_arc) + clothoid out.
-- Clothoid parameter `A = R / 2`, so `L = A² / R = R / 4` (RAA: A between R/3 and R). R 470 m → L 118 m; R 1000 m → 250 m; R 3000 m → 750 m.
+- Clothoid parameter `A = R / 2`, so `L = A² / R = R / 4` (RAA: A between R/3 and R). R 600 m → L 150 m; R 1000 m → 250 m; R 3000 m → 750 m.
 - Total turning angle θ: 10° to 45°, random.
 - **S-curves** (phase 3+): a curve followed directly by an opposite curve, clothoid to clothoid, with no straight between.
 - **Straights** between curves: length by phase (6.5).
 
-Design values (RAA, as recalled): top design class min radius about 720 m; the next class about 470 m. The game uses **470 m as the hard minimum** and 720 m as the normal minimum.
+Design values (RAA, as recalled): top design class min radius about 720 m; the next class about 470 m. The game uses **600 m as the hard minimum** (it was 470 m until v0.7; at 342 km/h a 470 m curve left 0.5 s to react) and 720 m as the normal minimum.
 
 ### 6.3 Curve drift (user decision)
 
@@ -547,36 +733,37 @@ s_hold  = c / a_grip                   steering needed just to hold the line
 drift   = v_side_max × s_hold, pushing outward    (used in 2.2: target = v_side_max × s − drift)
 ```
 
-- `s_hold < 1`: the player can hold the line and still dodge: inward up to `(1 − s_hold) × 7 m/s`, outward easily.
+- `s_hold < 1`: the player can hold the line and still dodge: inward up to `(1 − s_hold) × v_side_max` (9.8 m/s from 100 km/h on), outward easily.
 - `s_hold = 1`: full steering only holds the line; no inward dodge.
-- `s_hold > 1`: even full steering drifts outward at `(s_hold − 1) × 7 m/s` until the car hits the outer rail. The rail rule (2.5) decides: below 4 m/s side speed (`s_hold < 1.57`) it is a scrape that costs 15 km/h per second, which lowers `s_hold` until the car can hold again; above that it is game over.
+- `s_hold > 1`: even full steering drifts outward at `(s_hold − 1) × 9.8 m/s` until the car hits the outer rail. The rail rule (2.5) decides: below 4 m/s side speed (`s_hold < 1.41`) it is a scrape that costs 15 km/h per second, which lowers `s_hold` until the car can hold again; above that it is game over.
 - The car body visually turns with the road; the drift shows as the car sliding toward the outer rail.
 
-**Speeds per curve radius (flat curve, q = 4 %):**
+**Speeds per curve radius (flat curve, q = 4 %, side speed 9.8 m/s):**
 
-| R | Comfortable (s_hold 0.5) | Hold limit (s_hold 1.0) | Rail game over above (s_hold 1.57) | At the 306 km/h ceiling |
-|---|---|---|---|---|
-| 470 m | 167 km/h | 231 km/h | 287 km/h | s_hold 1.80, drift 5.6 m/s → **game over** |
-| 720 m | 206 km/h | 285 km/h | 355 km/h | s_hold 1.16, drift 1.1 m/s → scrape |
-| 1000 m | 243 km/h | 336 km/h | 418 km/h | s_hold 0.82 → holds, little inward dodge (1.3 m/s) |
-| 1500 m | 298 km/h | 412 km/h | — | s_hold 0.53 → fine |
-| 2000 m | 344 km/h | 476 km/h | — | s_hold 0.39 → fine |
-| 3000 m | 421 km/h | — | — | s_hold 0.24 → fine |
+| R | Comfortable (s_hold 0.5) | Hold limit (s_hold 1.0) | Rail game over above (s_hold 1.41) | At the 342 km/h flat ceiling | At 363 km/h (after a long downhill) |
+|---|---|---|---|---|---|
+| 600 m | 188 km/h | 261 km/h | 307 km/h | s_hold 1.76, net 7.4 m/s → **game over** | s_hold 1.99 → **game over** |
+| 720 m | 206 km/h | 285 km/h | 336 km/h | s_hold 1.46, net 4.5 m/s → **game over** | s_hold 1.65 → **game over** |
+| 1000 m | 243 km/h | 336 km/h | 397 km/h | s_hold 1.04, net 0.3 m/s → light scrape | s_hold 1.17, net 1.7 m/s → scrape |
+| 1500 m | 298 km/h | 412 km/h | 486 km/h | s_hold 0.67 → fine | 0.77 → fine |
+| 2000 m | 344 km/h | 476 km/h | 561 km/h | 0.49 → fine | 0.56 → fine |
+| 3000 m | 421 km/h | 583 km/h | 687 km/h | 0.31 → fine | 0.36 → fine |
 
 So:
-- **The sharpest curve (470 m) is fine at 160–170 km/h**, holdable up to 231 km/h, and deadly near the ceiling.
-- **The ceiling is only safe on straights and gentle curves** (R ≥ 1500 m comfortable, R ≥ 1000 m just holdable).
-- **Slowing in time:** the flat ceiling is now 247 km/h, so speeds above the hold limit at R 470 (231 km/h) are reached only near it or downhill; from 247 km/h, coasting to 231 km/h takes about 3 s and 200 m. The 306 km/h columns of this table apply only to a car that was already that fast (not reachable any more). With road drawn to 1.5 km (5.3), a tight curve is visible about 17 s ahead at the ceiling. Chevron boards (3.2) mark curves under 1000 m.
-- **Tyre scrub (2.2) helps in curves:** holding `s = s_hold` costs speed. In a 1000 m curve at 306 km/h (`s_hold` 0.82) the car slows by about 3 km/h per second even with the accelerator held, so it settles toward a comfortable speed. The table above is the speed at curve entry; the speed through the curve drops from there.
+- **The sharpest curve (600 m) is fine at 188 km/h** and holdable up to 261 km/h. Above 307 km/h it ends the run unless the car slows first.
+- **The ceiling is only safe on straights and gentle curves:** R ≥ 1500 m is comfortable at 342 km/h, R 1000 m just holdable, R 720 m and R 600 m are deadly.
+- **Slowing in time:** from 342 km/h, coasting to 307 km/h (the survivable limit at R 600) takes 7.1 s and 0.64 km, to 336 km/h (R 720) 1.1 s and 0.11 km, to the hold limit 261 km/h 18 s and 1.5 km. The 1.5 km of drawn road is 15.8 s ahead at 342 km/h, so a curve under 1000 m (marked by chevrons, 3.2) is seen at least 8 s before the last moment to start coasting for R 600. From 363 km/h coasting to 307 km/h takes 10.8 s and 1.0 km, which still leaves 4 s.
+- **Tyre scrub (2.2) helps in curves:** holding `s = s_hold` costs speed (about 3 km/h per second at `s_hold` 0.8, 4 km/h per second at full steering), so the car settles toward a holdable speed. The table above is the speed at curve entry; the speed through the curve drops from there.
 - **Downhill + tight curve:** no curve with R < 1000 m on a downhill steeper than −2 %, since the car would arrive faster than the flat ceiling.
+- **Curve after a downhill:** no curve with R < 1000 m starts within **1500 m after the end** of a downhill steeper than −2 %. From 363 km/h coasting to 307 km/h takes 1.0 km, so the player has the distance to slow, and the car is still above the flat ceiling at the bottom.
 
 ### 6.4 Vertical and structures
 
 **Hills (vertical):**
 - Grade between −4 % and +4 % (RAA top class max about 4 %).
-- Grade changes through vertical curves: crest radius ≥ 15 000 m (5.4), sag radius ≥ 9 000 m (RAA about 8 800 m). Vertical curve length = R × |grade change|; e.g. +3 % to −3 % over a crest of R 15 000 m is 900 m long.
+- Grade changes through vertical curves: crest radius ≥ 20 000 m (5.4), sag radius ≥ 9 000 m (RAA about 8 800 m). Vertical curve length = R × |grade change|; e.g. +3 % to −3 % over a crest of R 20 000 m is 1 200 m long.
 - Grade segments (constant grade): 400–2000 m.
-- At the ceiling, a crest of R 15 000 m gives v²/R = 0.5 m/s² (5 % of g), so the car never lifts off. No jumps.
+- At 363 km/h, a crest of R 20 000 m gives v²/R = 0.51 m/s² (5 % of g), so the car never lifts off. No jumps.
 - Grade feeds `F_grade` in the force model (2.2).
 
 **Tunnels:**
@@ -602,7 +789,7 @@ The generator appends one horizontal element at a time (straight or curve), then
 | | Phase 1 (0–20 s) | Phase 2 (20–60 s) | Phase 3 (60–120 s) | Phase 4 (120 s +) |
 |---|---|---|---|---|
 | Straight length | 800–2000 m | 500–1500 m | 300–1200 m | 200–1000 m |
-| Curve radius | 2000–5000 m | 1200–3000 m | 720–2000 m | 470–1500 m (20 % of curves under 720 m) |
+| Curve radius | 2000–5000 m | 1200–3000 m | 720–2000 m | 600–1500 m (20 % of curves under 720 m) |
 | S-curves | no | no | 20 % of curves | 35 % of curves |
 | Max grade | ±1 % | ±2.5 % | ±4 % | ±4 % |
 | Overpasses | every 1–2 km | every 1–2 km | every 1–2 km | every 1–2 km |
