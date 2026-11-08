@@ -342,7 +342,7 @@ Researched 2026-11-07. This research downloaded nothing and used no account.
 - 79k triangles is the closest to the budget (reduce about 24 % to 60k), the GLB is only 4.9 MB, and textures are 1024 px.
 - CC BY 4.0: credit line only, no share-alike.
 - Paint: one material holds the yellow paint (`11Mtl`, base colour about `#FFB500`), so recolouring to red is one material change. The others: `T1Mtl` (tyre), `R1Mtl`, `R5Mtl`, `Ri1Mtl` (rims), `Window1Mtl` (glass), and several dark red ones for calipers, tail lamps and reflector.
-- **Downloaded 2026-11-07** (the user said yes) to `C:\Users\junan\Desktop\geisterfahrer-models\player\porsche-991-carrera-s\porsche-991-carrera-s.glb`, 4,929,080 bytes. Details are in `C:\Users\junan\Desktop\geisterfahrer-models\SOURCES.md`. Read from the file: exactly 78,990 triangles, 12 PNG textures (max 1024 px), 29 nodes, 27 meshes, 23 materials.
+- **Downloaded 2026-11-07** (the user said yes) to `ThirdPartySources\player\porsche-991-carrera-s\porsche-991-carrera-s.glb`, 4,929,080 bytes. Details are in `ThirdPartySources\SOURCES.md`. Read from the file: exactly 78,990 triangles, 12 PNG textures (max 1024 px), 29 nodes, 27 meshes, 23 materials.
 - **Weak point, now confirmed:** the model is a converted OBJ. The 27 mesh nodes are named `Object_2` to `Object_28`. The paint is one mesh (`Object_7`, material `11Mtl`, 9,719 triangles): easy to recolour. **The wheels are not separate nodes**: all four tyres are in one mesh (`T1Mtl`, 2,400 triangles) and the rims in two (`Ri1Mtl`, 6,759 + 2,253 triangles), plus `R1Mtl`, `R5Mtl`, `Sw1Mtl`, `Ca1Mtl` for rim details, discs and calipers. To make the wheels spin, the developer must split those meshes by vertex position into four wheel groups (wheel centres are listed in `SOURCES.md`). This is a one-time import script, not a reason to switch to fallback B.
 
 **Why B is the fallback.**
@@ -363,7 +363,7 @@ Researched 2026-11-07. This research downloaded nothing and used no account.
 
 ### Sketchfab models downloaded 2026-11-07
 
-All R items were downloaded by hand with the user's approval (free models, GLB, 1k textures where a choice existed). Files are in `C:\Users\junan\Desktop\geisterfahrer-models\<class>\<name>\` (outside git). Author, licence, URL, size and SHA-256 are in `SOURCES.md` there. Triangle counts are read from the files.
+All R items were downloaded by hand with the user's approval (free models, GLB, 1k textures where a choice existed). Files are in `ThirdPartySources\<class>\<name>\` (outside git). Author, licence, URL, size and SHA-256 are in `SOURCES.md` there. Triangle counts are read from the files.
 
 Over the 15k traffic budget (needs LOD or a cheaper stand-in): R05, R11, R12, R14, R15, R19, R20, R24, R26, R28. R29a is close (14k).
 
