@@ -43,6 +43,7 @@ namespace Geisterfahrer.Editor
             var art = new Art
             {
                 baseLit = Asset("Assets/Materials/Base.mat", () => new Material(lit)),
+                facade = FacadeMaterial(),
                 dash = Asset("Assets/Materials/Dash.mat", () =>
                 {
                     var m = new Material(lit);
@@ -215,11 +216,15 @@ namespace Geisterfahrer.Editor
         }
 
         // New or removed model files in Vehicles/ and the player prefab, put into the saved scene without a full Setup.
+        // The scenery material (Assets/Shaders/Facade.shader); an asset the scene references, so the shader is in the build.
+        static Material FacadeMaterial() => Asset("Assets/Materials/Facade.mat", () => new Material(Shader.Find("Geisterfahrer/Facade")));
+
         public static void RefreshModels()
         {
             var player = PlayerPrefab.Build();
             var scene = UnityEditor.SceneManagement.EditorSceneManager.OpenScene(ScenePath);
             var loop = UnityEngine.Object.FindAnyObjectByType<GameLoop>();
+            loop.art.facade = FacadeMaterial();
             loop.art.vehicles = Road.Types.Select(t => new Models { list = ModelsFor(t.ModelKey) }).ToArray();
             if (player) loop.art.player = player;
             EditorUtility.SetDirty(loop);

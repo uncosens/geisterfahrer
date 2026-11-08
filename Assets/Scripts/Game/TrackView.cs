@@ -50,7 +50,7 @@ namespace Geisterfahrer.Game
             mats[(int)M.Roof] = Placeholder.Mat(Placeholder.Hex(0x8A4B3A), 0, 0.1f);
             mats[(int)M.Blue] = Placeholder.Mat(Placeholder.Hex(0x1C5AA8), 0, 0.3f);
             mats[(int)M.Red] = Placeholder.Mat(Placeholder.Hex(0xC4262E), 0, 0.3f);
-            for (int i = 0; i < 4; i++) mats[(int)M.Facade0 + i] = FacadeMat(i);
+            mats[(int)M.Facade0] = FacadeMaterial(art.facade);
             mats[(int)M.Water] = Placeholder.Mat(Placeholder.Hex(0x3D5A6B), 0.1f, 0.6f);
             sceneryOf.Clear();
             int[] fields = { 0x6F8A3E, 0xC8B46A, 0x8A7556, 0x7E9A4A };
@@ -439,7 +439,7 @@ namespace Geisterfahrer.Game
             var mesh = new Mesh { indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
             go.GetComponent<MeshFilter>().sharedMesh = mesh;
             go.GetComponent<MeshRenderer>().sharedMaterials = mats;
-            Child(go, "Mass"); Child(go, "Detail");
+            Child(go, "Mass"); Child(go, "Detail"); Child(go, "Sky");
             return go;
         }
 
@@ -488,6 +488,8 @@ namespace Geisterfahrer.Game
         partial class Builder
         {
             readonly List<Vector3> v = new List<Vector3>();
+            readonly List<Color32> col = new List<Color32>();
+            public Color32 Tint = new Color32(255, 255, 255, 255); // vertex colour of the next quads: scenery tint, alpha = facade slice * 32
             readonly List<Vector2> uv = new List<Vector2>();
             readonly List<Vector3> nrm = new List<Vector3>();
             readonly List<int>[] tris = new List<int>[(int)M.Count];
@@ -500,6 +502,7 @@ namespace Geisterfahrer.Game
                 int n = v.Count;
                 v.Add(a); v.Add(b); v.Add(c); v.Add(d);
                 uv.Add(ua); uv.Add(ub); uv.Add(uc); uv.Add(ud);
+                col.Add(Tint); col.Add(Tint); col.Add(Tint); col.Add(Tint);
                 if (normals != null) nrm.AddRange(normals);
                 else { var f = Vector3.Cross(b - a, c - a).normalized; nrm.Add(f); nrm.Add(f); nrm.Add(f); nrm.Add(f); }
                 tris[sub].AddRange(new[] { n, n + 1, n + 2, n, n + 2, n + 3 });
@@ -623,6 +626,7 @@ namespace Geisterfahrer.Game
                 m.Clear();
                 m.SetVertices(v);
                 m.SetUVs(0, uv);
+                m.SetColors(col);
                 m.subMeshCount = tris.Length;
                 for (int i = 0; i < tris.Length; i++) m.SetTriangles(tris[i], i);
                 m.SetNormals(nrm);

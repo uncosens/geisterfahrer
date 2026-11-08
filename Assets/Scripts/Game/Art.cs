@@ -8,7 +8,7 @@ namespace Geisterfahrer.Game
     [Serializable]
     public class Art
     {
-        public Material baseLit, asphalt, grass, dash, spark;
+        public Material baseLit, asphalt, grass, dash, spark, facade; // facade: Geisterfahrer/Facade shader (scenery)
         public TMP_FontAsset bold, semi, black, sign;
         public Material boldShadow, semiShadow;
         [Tooltip("Models per vehicle type (Road.Types order); several files per type give variety. Empty = placeholder.")]

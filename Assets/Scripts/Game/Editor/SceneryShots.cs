@@ -39,7 +39,10 @@ namespace Geisterfahrer.Editor
                 var tex = new Texture2D(rt.width, rt.height, TextureFormat.RGB24, false);
                 tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
                 File.WriteAllBytes($"docs/dev/shots/city-{name}.png", tex.EncodeToPNG());
-                Debug.Log($"CITY {name} at {s:F0} zone {track.Zones.At(s + 100)} scenery tris {Game.TrackView.SceneryTriangles}");
+                int tris = 0, calls = 0; // the scenery in view: meshes named Mass, Detail, Sky (one material each = one draw call each)
+                foreach (var mf in Object.FindObjectsByType<MeshFilter>(FindObjectsSortMode.None))
+                    if ((mf.name == "Mass" || mf.name == "Detail" || mf.name == "Sky") && mf.gameObject.activeInHierarchy) { tris += mf.sharedMesh.triangles.Length / 3; if (mf.sharedMesh.triangles.Length > 0) calls++; }
+                Debug.Log($"CITY {name} at {s:F0} zone {track.Zones.At(s + 100)} scenery tris {tris} calls {calls}");
             }
 
             foreach (Zone z in System.Enum.GetValues(typeof(Zone)))
