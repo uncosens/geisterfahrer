@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Geisterfahrer.Core
 {
-    public enum Section { Open, Tunnel, Viaduct, Underground }
+    public enum Section { Open, Tunnel, Viaduct, Underground, Trench, Interchange, Bridge }
 
     // Endless procedural road (GDD 6), generated ahead of the player as functions of road distance s:
     // curvature (1/R, + = curve to the player's right), grade (rise/run), structures and overpass points.
@@ -42,14 +42,19 @@ namespace Geisterfahrer.Core
         // Underground section (cut-and-cover): the road sinks UgDepth below the terrain over UgRamp m, runs level, and rises again.
         // Smoothstep ramp: steepest slope 1.5 x UgDepth / UgRamp = 3.5 %.
         public const double UgDepth = 8, UgRamp = 340, UgRoof = 6.5; // m below terrain; roof starts where the depth reaches UgRoof
+        // Trench (city, GDD 6.6): 6 m below street level between retaining walls, 230 m ramps (3.9 % at the steepest).
+        public const double TrDepth = 6, TrRamp = 230;
+
         public double Depth(double s)
         {
             double d = 0;
             foreach (var st in Structures)
             {
-                if (st.kind != Section.Underground || s <= st.s0 || s >= st.s1) continue;
-                double u = Math.Min(1, Math.Min(s - st.s0, st.s1 - s) / UgRamp);
-                d = Math.Max(d, UgDepth * u * u * (3 - 2 * u));
+                bool ug = st.kind == Section.Underground;
+                if ((!ug && st.kind != Section.Trench) || s <= st.s0 || s >= st.s1) continue;
+                double depth = ug ? UgDepth : TrDepth, ramp = ug ? UgRamp : TrRamp;
+                double u = Math.Min(1, Math.Min(s - st.s0, st.s1 - s) / ramp);
+                d = Math.Max(d, depth * u * u * (3 - 2 * u));
             }
             return d;
         }
@@ -101,19 +106,95 @@ namespace Geisterfahrer.Core
             if (host && straight < 1400) straight = Rand(1400, 2000);
             if (host) { tunnelStraights.Add(s); geomSinceTunnel = 0; } else geomSinceTunnel += straight;
             Knot(hs, hk, s + straight, 0);
-            int side = rng.Next(2) * 2 - 1;
-            do
+            if (phase >= 1) AddModule(phase);
+            else
             {
-                double r = phase == 3 && rng.NextDouble() < 0.2 ? Rand(470, 720) : Rand(Radius[phase, 0], Radius[phase, 1]);
-                double theta = Rand(10, 45) * Math.PI / 180, l = r / 4;            // clothoid A = R/2, L = R/4
-                double arc = Math.Max(0, r * theta - l);                           // the two clothoids turn L/R together
-                double s0 = hs[hs.Count - 1];
-                Knot(hs, hk, s0 + l, side / r);
-                Knot(hs, hk, s0 + l + arc, side / r);
-                Knot(hs, hk, s0 + 2 * l + arc, 0);
-                side = -side;
-            } while (rng.NextDouble() < SCurve[phase]);
+                int side = rng.Next(2) * 2 - 1;
+                do
+                {
+                    double r = phase == 3 && rng.NextDouble() < 0.2 ? Rand(600, 720) : Rand(Radius[phase, 0], Radius[phase, 1]);
+                    double theta = Rand(10, 45) * Math.PI / 180, l = r / 4;            // clothoid A = R/2, L = R/4
+                    double arc = Math.Max(0, r * theta - l);                           // the two clothoids turn L/R together
+                    double s0 = hs[hs.Count - 1];
+                    Knot(hs, hk, s0 + l, side / r);
+                    Knot(hs, hk, s0 + l + arc, side / r);
+                    Knot(hs, hk, s0 + 2 * l + arc, 0);
+                    side = -side;
+                } while (rng.NextDouble() < SCurve[phase]);
+
+            }
             geomSinceTunnel += hs[hs.Count - 1] - (s + straight);
+        }
+
+        // ---- curve modules (GDD 6.6): after the straight, one of curve, sweeping bend, S-curve, sequence, tightening curve ----
+
+        public readonly List<(double s0, double r, string module, int id)> Bends = new List<(double, double, string, int)>();
+        int moduleId;
+        static readonly string[] ModNames = { "curve", "sweep", "s", "sequence", "tight" };
+        static readonly double[][] ModW = { null, new[] { 35.0, 25, 0, 0, 0 }, new[] { 25.0, 10, 20, 10, 10 }, new[] { 20.0, 8, 22, 20, 15 } };
+        int lastModule = -1;
+
+        // Clothoid - arc - clothoid, turning theta (rad); side +1 = right.
+        void Bend(double r, double theta, int side, string module)
+        {
+            double l = r / 4, arc = Math.Max(0, r * theta - l), s0 = hs[hs.Count - 1];
+            Bends.Add((s0, r, module, moduleId));
+            Knot(hs, hk, s0 + l, side / r);
+            Knot(hs, hk, s0 + l + arc, side / r);
+            Knot(hs, hk, s0 + 2 * l + arc, 0);
+        }
+
+        double DrawRadius(int phase) => phase == 3 && rng.NextDouble() < 0.2 ? Rand(600, 720) : Rand(Radius[phase, 0], Radius[phase, 1]);
+
+        void AddModule(int phase)
+        {
+            int m = PickWeighted(ModW[phase]);
+            if (m == lastModule) m = PickWeighted(ModW[phase]); // variety: one reroll against the same module twice in a row
+            lastModule = m; moduleId++;
+            int side = rng.Next(2) * 2 - 1;
+            double deg = Math.PI / 180;
+            switch (m)
+            {
+                case 0: Bend(DrawRadius(phase), Rand(10, 45) * deg, side, "curve"); break;
+                case 1:
+                {
+                    double r = Rand(3000, 5000);
+                    Bend(r, Math.Min(Rand(25, 60) * deg, 3000 / r), side, "sweep");
+                    break;
+                }
+                case 2: case 3:
+                {
+                    int n = m == 2 ? 2 : rng.Next(3, 6);
+                    double min = phase == 2 ? 900 : 600, max = Radius[phase, 1];
+                    var rs = new double[n];
+                    rs[0] = Math.Max(min, Math.Min(max, DrawRadius(phase)));
+                    for (int i = 1; i < n; i++) rs[i] = Math.Max(min, Math.Min(max, rs[i - 1] * Rand(0.7, 1.4)));
+                    double lo = double.MaxValue; foreach (var x in rs) lo = Math.Min(lo, x);
+                    rs[0] = Math.Max(rs[0], 1.2 * lo); // the tightest curve is never the entry
+                    for (int i = 0; i < n; i++) { Bend(rs[i], Rand(10, 45) * deg, side, m == 2 ? "s" : "sequence"); side = -side; }
+                    break;
+                }
+                default:
+                {
+                    double r1 = Math.Max(phase == 2 ? 900 : 700, DrawRadius(phase)), r2 = Rand(0.6, 0.9) * r1, s0 = hs[hs.Count - 1];
+                    double l1 = r1 / 4, a1 = Rand(60, 200), lt = Rand(100, 200), a2 = Rand(80, 250), l2 = r2 / 4;
+                    Bends.Add((s0, r1, "tight", moduleId));
+                    Knot(hs, hk, s0 + l1, side / r1);
+                    Knot(hs, hk, s0 + l1 + a1, side / r1);
+                    Knot(hs, hk, s0 + l1 + a1 + lt, side / r2);   // the second clothoid: the radius falls from r1 to r2
+                    Knot(hs, hk, s0 + l1 + a1 + lt + a2, side / r2);
+                    Knot(hs, hk, s0 + l1 + a1 + lt + a2 + l2, 0);
+                    break;
+                }
+            }
+        }
+
+        int PickWeighted(double[] w)
+        {
+            double sum = 0; foreach (var x in w) sum += x;
+            double r = rng.NextDouble() * sum;
+            for (int i = 0; i < w.Length; i++) { r -= w[i]; if (r < 0 && w[i] > 0) return i; }
+            return 0;
         }
 
         // ---- vertical: constant grades joined by vertical curves (6.4) ----
@@ -162,6 +243,7 @@ namespace Geisterfahrer.Core
         void AddStructures(double upTo, int phase)
         {
             AddTunnels(upTo);
+            AddSlots(upTo, phase);
             // Viaducts: one roll per km of new road.
             for (double km = Math.Max(structuresDone, 1000); km + 1000 <= upTo; km += 1000)
             {
@@ -175,6 +257,56 @@ namespace Geisterfahrer.Core
                 if (KindAt(nextOverpass) == Section.Open) Overpasses.Add(nextOverpass);
                 nextOverpass += Rand(1000, 2000);
             }
+        }
+
+        // ---- slot structures (GDD 6.6): interchange a, river bridge, trench ----
+
+        double nextSlot = 800;
+        static readonly double[] SlotGapMin = { 0, 1000, 900, 800 }, SlotGapMax = { 0, 2400, 2000, 1800 };
+        static readonly double[][] SlotW = { null, new[] { 25.0, 15, 0, 30 }, new[] { 22.0, 14, 10, 20 }, new[] { 20.0, 13, 12, 18 } }; // interchange, bridge, trench, plain
+        public const double TrenchMin = 700, TrenchMax = 1500;
+
+        // Curvature stays under maxK over [a, b].
+        bool Straightish(double a, double b, double maxK)
+        {
+            for (double x = a; x <= b; x += 20) if (Math.Abs(Curvature(x)) > maxK) return false;
+            return true;
+        }
+
+        void AddSlots(double upTo, int phase)
+        {
+            if (phase < 1 || hs[hs.Count - 1] >= 1e8) return;
+            double sampled = (X.Count - 1) * SampleStep;
+            while (nextSlot + 2000 <= upTo)
+            {
+                double at0 = Math.Ceiling(Math.Max(nextSlot, sampled) / 4) * 4, end = 0;
+                var kind = (Section)(-1);
+                double[] w = (double[])SlotW[phase].Clone();
+                int pick = PickWeighted(w);
+                double len = pick == 0 ? Math.Floor(Rand(800, 1300) / 4) * 4 : pick == 1 ? Math.Floor(Rand(250, 800) / 4) * 4 : Math.Floor(Rand(TrenchMin, TrenchMax) / 4) * 4;
+                double maxK = pick == 0 ? 1 / 1500.0 : pick == 1 ? 1 / 1000.0 : 0;
+                if (pick < 3)
+                    for (double at = at0; at + len <= at0 + 1500 && at + len + 100 <= upTo; at += 50)
+                    {
+                        if (!Straightish(at, at + len, maxK) || Busy(at - MinGap, at + len + MinGap)) continue;
+                        if (pick == 2 && (Zones.At(at) != Zone.City || Zones.At(at + len) != Zone.City || !Level(at, at + len, TrRamp))) continue;
+                        kind = pick == 0 ? Section.Interchange : pick == 1 ? Section.Bridge : Section.Trench;
+                        Structures.Add((at, at + len, kind)); end = at + len;
+                        if (kind == Section.Interchange) Overpasses.Add(Math.Floor((at + end) / 2 / 4) * 4); // the local road crossing inside the module
+                        if (kind == Section.Trench) // street bridges every 120-250 m
+                            for (double x = at + TrRamp + Rand(120, 250); x < end - TrRamp; x += Rand(120, 250)) Overpasses.Add(Math.Floor(x / 4) * 4);
+                        break;
+                    }
+                nextSlot = (end > 0 ? end : at0) + Rand(SlotGapMin[phase], SlotGapMax[phase]);
+            }
+        }
+
+        // A crest top lies within [a - 300, b + 150]: fairness rule F3 keeps tall scenery away from 150 m before to 300 m after it.
+        public bool NearCrest(double a, double b)
+        {
+            for (double x = Math.Max(0, a - 300); x <= b + 150; x += 25)
+                if (GradeBase(x) > 0.0005 && GradeBase(x + 25) <= 0.0005) return true;
+            return false;
         }
 
         // Tunnels sit on straights, never in the first FirstTunnel metres, with a random chance per straight and MinGap between structures.
@@ -218,9 +350,9 @@ namespace Geisterfahrer.Core
 
         // The ramps add up to 3.5 % (down at the entry, up at the exit): keep the total under 5.5 %,
         // so the terrain must not fall faster than 2 % on the entry ramp or rise faster than 2 % on the exit ramp.
-        bool Level(double a, double b)
+        bool Level(double a, double b, double ramp = UgRamp)
         {
-            for (double x = a; x <= a + UgRamp; x += 50) if (GradeBase(x) < -0.02 || GradeBase(b - (x - a)) > 0.02) return false;
+            for (double x = a; x <= a + ramp; x += 50) if (GradeBase(x) < -0.02 || GradeBase(b - (x - a)) > 0.02) return false;
             return true;
         }
 

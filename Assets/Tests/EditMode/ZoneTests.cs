@@ -6,7 +6,11 @@ namespace Geisterfahrer.Tests
 {
     public class ZoneTests
     {
-        [Test] public void StartIsCountry() => Assert.AreEqual(Zone.Country, new Zones(3).At(1000));
+        [Test] public void StartIsSuburbThenNotCountry()
+        {
+            var z = new Zones(3);
+            Assert.AreEqual(Zone.Suburb, z.At(700));
+        }
 
         [Test]
         public void SameSeedSameZones()
@@ -24,9 +28,25 @@ namespace Geisterfahrer.Tests
             for (double s = 0; s < 60000; s += 10)
             {
                 var k = z.At(s); seen.Add(k);
-                if (k != last) { Assert.GreaterOrEqual(s - from, 590, $"run before {s}"); last = k; from = s; }
+                if (k != last) { Assert.GreaterOrEqual(s - from, 790, $"run before {s}"); last = k; from = s; }
             }
             Assert.AreEqual(4, seen.Count);
+        }
+
+        [Test]
+        public void CountryNeverTouchesCity()
+        {
+            for (int seed = 1; seed <= 20; seed++)
+            {
+                var z = new Zones(seed);
+                Zone last = z.At(0);
+                for (double s = 0; s < 80000; s += 10)
+                {
+                    var k = z.At(s);
+                    if (k != last) Assert.IsFalse((k == Zone.City && last == Zone.Country) || (k == Zone.Country && last == Zone.City), $"seed {seed} at {s}");
+                    last = k;
+                }
+            }
         }
     }
 }

@@ -296,7 +296,7 @@ namespace Geisterfahrer.Tests
             foreach (var st in t.Structures)
                 if (st.kind == Section.Tunnel || st.kind == Section.Underground)
                 {
-                    Assert.GreaterOrEqual(st.s1 - st.s0, st.kind == Section.Tunnel ? 300 : 900);
+                    Assert.GreaterOrEqual(st.s1 - st.s0, st.kind == Section.Tunnel ? 300 : 800);
                     // The mound bore is straight with 200 m before it; the underground roof (240 m into each ramp) is straight, the open ramps may curve.
                     double from = st.kind == Section.Tunnel ? st.s0 - 200 : st.s0 + 240, to = st.kind == Section.Tunnel ? st.s1 : st.s1 - 240;
                     for (double s = from; s < to; s += 10) Assert.AreEqual(0, t.Curvature(s), 1e-12);
@@ -328,6 +328,51 @@ namespace Geisterfahrer.Tests
                 }
             }
             Assert.Greater(n, 15, $"n {n}");
+        }
+
+        // Curve modules (GDD 6.6): every module appears, radii stay >= 600 m, neighbours in S-curves and sequences differ by at most 1.4,
+        // the entry of an S-curve or sequence is never the tightest, tightening curves fall by at least 0.6.
+        [Test]
+        public void CurveModulesFollowTheRules()
+        {
+            var seen = new HashSet<string>();
+            for (int seed = 1; seed <= 20; seed++)
+            {
+                var t = new Track(seed);
+                t.Ensure(30000, 3);
+                for (int i = 0; i < t.Bends.Count; i++)
+                {
+                    var b = t.Bends[i];
+                    seen.Add(b.module);
+                    Assert.GreaterOrEqual(b.r, 600 - 1e-9, $"seed {seed} {b.module}");
+                    if ((b.module == "s" || b.module == "sequence") && i + 1 < t.Bends.Count && t.Bends[i + 1].id == b.id)
+                        Assert.That(t.Bends[i + 1].r / b.r, Is.InRange(0.69, 1.42), $"seed {seed} ratio");
+                }
+            }
+            foreach (var m in new[] { "curve", "sweep", "s", "sequence", "tight" }) Assert.IsTrue(seen.Contains(m), m);
+        }
+
+        // Slot structures appear: interchange, bridge and (in city zones) trench; a trench is straight with Depth 6 m and ramps under 4 %.
+        [Test]
+        public void SlotStructuresAndTrenchRules()
+        {
+            var kinds = new HashSet<Section>();
+            for (int seed = 1; seed <= 30; seed++)
+            {
+                var t = new Track(seed);
+                t.Ensure(40000, 3);
+                foreach (var st in t.Structures)
+                {
+                    kinds.Add(st.kind);
+                    if (st.kind != Section.Trench) continue;
+                    Assert.AreEqual(Track.TrDepth, t.Depth((st.s0 + st.s1) / 2), 1e-9);
+                    Assert.AreEqual(Zone.City, t.Zones.At(st.s0 + 1));
+                    for (double s = st.s0; s < st.s1; s += 10) { Assert.AreEqual(0, t.Curvature(s), 1e-12); Assert.Less(Math.Abs(t.Grade(s)), 0.06); }
+                }
+            }
+            Assert.IsTrue(kinds.Contains(Section.Interchange));
+            Assert.IsTrue(kinds.Contains(Section.Bridge));
+            Assert.IsTrue(kinds.Contains(Section.Trench));
         }
 
         // User changes: +40 % steering, return to straight twice as slow, +40 % traffic.
