@@ -1,8 +1,8 @@
-# Geisterfahrer — Game Design (final v0.8)
+# Geisterfahrer — Game Design (final v0.9)
 
 "Geisterfahrer" is German for a wrong-way driver ("ghost driver"). This draft describes the chosen concept and lists open questions. The developer implements from it, so numbers are concrete; they are first values to tune in playtests.
 
-Status: final v0.8. Decided by the user (and by the director while the user was away, see `docs/decisions.md`):
+Status: final v0.9. Decided by the user (and by the director while the user was away, see `docs/decisions.md`):
 - Concept A, one map (German Autobahn), realistic 3D, chase camera, Unity, Android, **landscape only**.
 - **Personal use only** (the user plays it alone; no store release, no monetization, no online). So the player car is modeled directly on the **Porsche 911**, in **red**, and real vehicle designs may be used. (Personal use told by the user directly to the planner.)
 - **No hard shoulder.** (Told by the user directly to the planner.)
@@ -13,6 +13,13 @@ Status: final v0.8. Decided by the user (and by the director while the user was 
 - **Impulse-based collisions** with vehicles and guardrails.
 - **Real car force model** for speed, no top-speed cap, **no minimum speed**, **start at 0 km/h**.
 - **Records = top speed and max distance** (no points, no near miss, no combo).
+
+Changes from v0.8 (user: the road is too plain; make it dynamic and city-like, `docs/decisions.md` 83–89):
+- **Layout modules** (6.6): S-curves, curve sequences, sweeping bends, tightening curves, roller hills, and structure slots with interchanges (visible slip roads, flyover, median split), level crossings, river bridges with piers, valley viaducts, trench sections in town; weights, lengths, chaining and what each phase allows.
+- **Scenery zones** (6.7): city, suburb, industrial, countryside with setback, height, density, gaps, noise walls, berms, lamp posts, minimum curve radius per zone.
+- **Fairness rules F1–F9** (6.8): clear zone, curve inside clearance `c(R)`, crest zone, portal zone, interchange sight triangle, trench; 5.4 updated.
+- **Speed feel** (6.9) and **performance limits C1–C10** (6.10).
+- Crest zone rule: no curve with R < 2000 m over a crest zone (was R < 1500 m).
 
 Changes from v0.7 (merge of the planner's v0.7 with the developer's newer rules, plus the user's newest numbers, `docs/decisions.md` 73–78):
 - **Power 175 kW** (user; CdA 0.30, μ_drive 0.55, mass 1500 kg unchanged). From standstill: 100 km/h **5.5 s**, 200 km/h **17.0 s**, 250 km/h **28.1 s**, 300 km/h **49.1 s**, flat ceiling **342 km/h**, 4 % downhill ceiling 382 km/h, practical top after a 2 km downhill about **363 km/h** (2.2). Every speed-dependent table is redone: scrub (2.2), first seconds (2.4), spawn distance up to 604 m (5.3), crest sight with the lowered camera (5.4), curve speeds and drift (6.3), speed dial **0–400 km/h** (2.6).
@@ -360,7 +367,7 @@ A contact with a motorbike, even head-on, is **never game over**. It costs a lar
 ### 2.7 MVP feature list
 
 1. Endless procedural Autobahn: 4 lanes, guardrails both sides, no shoulder (3.1, 6).
-2. Road geometry: straights, clothoid curves, hills, overpasses, viaducts, tunnels (6). **Build order:** straights + curves → hills → overpasses → viaducts → tunnels, each playable before the next.
+2. Road geometry (6): straights, clothoid curves, hills, overpasses, viaducts, tunnels, and the dynamic modules of 6.6. **Build order for the new parts:** scenery zones with buildings, speed-feel rules and performance limits (6.7, 6.9, 6.10) → curve modules (S-curve, sequence, sweeping bend, tightening) and rollers → overpass types, interchange `a`, level crossing → river bridge, trench → junction `b` with median split.
 3. MVP map props from 3.2.
 4. Chase camera, vehicle fade-in at the spawn distance, road drawn further (5).
 5. Red Porsche 911 Carrera S (991) player car (decision 52).
@@ -391,6 +398,7 @@ Not in MVP: menus beyond a start screen, settings, brake, gears, damage model, n
 - Day / night / rain.
 - Settings: steering sensitivity, left-handed layout, sound, haptics.
 - Slowing fast traffic in tight curves.
+- Cable-stayed bridge, tram on city street bridges, wind turbines, sign gantries (6.9), construction zones.
 - Other 911 colors or variants.
 - "Engine warm-up" power boost, only if top-speed records still get stuck despite downhills.
 
@@ -425,15 +433,16 @@ Germany drives on the right. The player drives the wrong way, so the traffic's r
 | Median | Metal guardrail + grass strip on the player's right; collision line | MVP |
 | Delineator posts (Leitpfosten) | White posts with black band, every 50 m | MVP |
 | Kilometer posts | Sign every 500 m; matches the distance read-out | MVP |
-| Roadside | Grass, fields, trees, cuttings and embankments that follow the hills | MVP |
-| Overpasses | Other roads crossing above (6.4) | MVP |
-| Viaducts | Player's road on a high bridge (6.4) | MVP |
+| Scenery zones | City, suburb, industrial, countryside with buildings, trees, lamp posts, silos, pylons (6.7) | MVP |
+| Overpasses | Other roads crossing above, five types (6.6) | MVP |
+| Viaducts and river bridges | Player's road on a high bridge, tapering piers visible below (6.4, 6.6) | MVP |
 | Tunnels | (6.4); from the first minute | MVP |
 | Curve chevron boards | Black/white arrow boards on the outer side of tight curves (R < 1000 m), seen from behind like all signs, so the shape matters more than the arrows | MVP |
 | Blue direction signs | Overhead gantries with blue signs, seen from behind | Later |
 | Emergency phone (orange SOS post) | Behind the rail | Later |
-| Noise walls | Some stretches | Later |
-| Exits / on-ramps, construction zones | | Later |
+| Noise walls, berms, retaining walls | By zone (6.7); never on the inside of curves (6.8 F2) | MVP |
+| Interchange ramps, median split, ramp flyover, level crossing, trench | Visible slip roads and levels beside and over the road (6.6); decorative cars only | MVP, built after the zones |
+| Construction zones | | Later |
 
 Props beyond the rails are scenery only and never block sight in curves (5.4).
 
@@ -677,15 +686,19 @@ Replaces the v0.3 free-lane rule. It uses real gaps in meters.
 | Section | What could cut sight | How the 3 s rule is kept |
 |---|---|---|
 | Straight | nothing | spawn distance (5.3) |
-| Curve | inner roadside, and the camera view angle | No sight-blocking objects (trees, walls, cuttings higher than 1 m) within 15 m of the inner rail in curves with R < 3000 m. Bearing of a vehicle at distance S on a curve is about S / (2R): at R 600 m and S 600 m it is 29°, inside the 37.5° half-FOV. |
+| Curve | inner roadside, and the camera view angle | Inside clearance `c(R) = max(15 m, 31 250 / R − 1.6 m)` from the inner rail (6.8 F2): nothing higher than 1.0 m inside it (R 600 m: 50 m, R 1000 m: 30 m, R 1500 m: 19 m, R ≥ 2000 m: 15 m). Bearing of a vehicle at distance S on a curve is about S / (2R): at R 600 m and S 600 m it is 29°, inside the 37.5° half-FOV. |
 | Crest | the hill itself | Crest radius **≥ 20 000 m** (the RAA minimum for the top design class is about 13 000 m). Sight over a crest with the speed camera at full effect (eye height 2.25 m) and a target height of 1.0 m: `S = (√(2·2.25) + √(2·1.0)) · √R` = **500 m** at R 20 000 m. Against the fastest vehicle that is 3.1 s at the flat ceiling (342 + 240 = 582 km/h), 3.0 s at the practical 363 km/h and 2.9 s only at the theoretical 382 km/h (rare: a crest taken at that speed needs a long downhill before it). At low speed (eye 2.75 m) it is 532 m. With R 22 000 m the margin would be 3.0 s even at 382 km/h; the developer already uses 20 000 m, so this stays unless a playtest shows blind crests. Extra rule: no side-by-side rows (only one corridor) within 300 m after a crest top, in all phases. |
 | Sag (dip) | nothing by day | no rule |
 | Tunnel | walls in a curve | Tunnels are **straight** (no curve, no crest inside) and lit, so sight = full length. No haze inside. Density inside × 0.7. 200 m straight before each portal so the portal and the traffic behind it are seen head-on. Camera exposure adapts over 0.5 s at portals; tunnel lights bright enough that vehicles stay readable during it. |
 | Viaduct | nothing | Parapet on both sides = rail (infinite mass). No sight rule. |
 | Overpass | short shadow | Shadow kept light (vehicles stay readable in it). No other rule. |
+| Buildings, walls, berms | the scenery | rules F1–F9 of 6.8: 3 m clear zone, curve inside clearance, crest zone, portal zone |
+| Interchange, junction | ramp walls, bridges at the gore | F5 sight triangle; the ramp stays within 1.0 m of the road height for 150 m |
+| Trench | retaining walls | straight only, walls 2.5 m behind the rail (F7) |
+| River bridge, level crossing | parapets | parapets 0.9 m, no taller object beside the deck; F4 at the ends |
 | Behind a tall vehicle | the vehicle | 5.5 |
 
-Combination rules: no crest inside a curve with R < 1500 m; no tunnel portal within 500 m after a crest top.
+Combination rules: no curve with R < 2000 m over a crest zone (150 m before to 300 m after a crest top, 6.6); no tunnel portal, abutment or gore within 300 m after a crest top (F3); no tunnel portal within 500 m after a crest top.
 
 ### 5.5 Hidden vehicles behind tall vehicles
 
@@ -706,7 +719,9 @@ The road is a chain of sections generated ahead of the player (always at least 2
 
 1. **Horizontal:** curvature `κ(d)` (1/R, signed; + = curve to the player's right). Heading = integral of κ, position = integral of heading.
 2. **Vertical:** grade `g(d)` (rise/run). Height = integral of grade.
-3. **Structure tag:** open road, tunnel, viaduct; plus overpass props at points.
+3. **Structure tag:** open road, tunnel, viaduct, river bridge, trench, interchange, level crossing; plus overpass props at points (6.6).
+4. **Zone tag:** city, suburb, industrial, countryside (6.7).
+5. **Side features:** ramps, median split, ramp flyovers, noise walls, berms, retaining walls (6.6, 6.7, 6.8).
 
 Everything (lanes, rails, vehicles, the player) lives in road coordinates `(d, x)`; the 3D mesh and the camera are built from them.
 
@@ -776,10 +791,10 @@ So:
 **Viaducts (Talbrücken):**
 - Length 300–1500 m, deck 20–80 m above a valley. Usually over a sag, so the road dips into the valley approach and climbs out.
 - Straight or curves with R ≥ 720 m.
-- Concrete parapet with a rail on both sides = collision line. Valley, river or forest below; open sky, no roadside props.
+- Concrete parapet with a rail on both sides = collision line. Tapering piers every 40–60 m, visible below the deck on both sides. Valley, river or forest below; open sky, no roadside props. River bridges and level crossings: 6.6.
 
 **Overpasses:**
-- Another road or a farm track crossing above on a bridge, 8–15 m wide, clearance 4.7 m (German standard clearance, as recalled). Abutments and piers stand outside the rails and in the median behind the median rail; no collision with them.
+- Another road or a farm track crossing above on a bridge, 6–35 m wide (five types in 6.6), clearance 4.7 m (German standard clearance, as recalled). Abutments and piers stand outside the rails and in the median behind the median rail; no collision with them.
 - Can sit on any open section, including curves. A short light shadow (5.4).
 
 ### 6.5 Chaining and frequency per phase
@@ -790,15 +805,154 @@ The generator appends one horizontal element at a time (straight or curve), then
 |---|---|---|---|---|
 | Straight length | 800–2000 m | 500–1500 m | 300–1200 m | 200–1000 m |
 | Curve radius | 2000–5000 m | 1200–3000 m | 720–2000 m | 600–1500 m (20 % of curves under 720 m) |
-| S-curves | no | no | 20 % of curves | 35 % of curves |
+| S-curves, sequences, tightening curves | no | no | see 6.6 | see 6.6 |
 | Max grade | ±1 % | ±2.5 % | ±4 % | ±4 % |
-| Overpasses | every 1–2 km | every 1–2 km | every 1–2 km | every 1–2 km |
-| Viaducts | none | 1 per 5 km | 1 per 5 km | 1 per 4 km |
+| Overpasses | after 500 m, zone rhythm (6.6) | same | same | same |
+| Slot structures (viaduct, bridge, interchange, level crossing, trench) | none | gaps 1.0–2.4 km (6.6) | 0.9–2.0 km | 0.8–1.8 km |
 | Tunnels | 50 % of straights ≥ 500 m after 1.5 km, mound or underground | same | same | same |
 
-- "1 per X km" = chance per km of road generated (e.g. 1/5 per km).
+- 6.6 extends this table: where they differ, 6.6 wins (module weights, slots, overpass rhythm).
 - In phase 1 the player covers about 0.9 km (from 0, holding the accelerator), so the first section is a straight of at least 800 m: the start is always straight and flat.
-- A 3-minute run at about 230 km/h average covers about 11 km, so a typical good run sees 1–2 tunnels and 2 viaducts.
+- A 3-minute run covers about 12 km; the expected structure counts are in 6.6.
+
+### 6.6 Layout modules (dynamic road)
+
+The generator builds the road from **modules**. Each module has a horizontal part, a vertical part and optional structures. Everything below keeps the limits of 6.2–6.4 (clothoids, R ≥ 600 m, grade ±4 %, crest ≥ 20 000 m, sag ≥ 9 000 m). Phases are by run time as in 2.4; the player covers about 0.8 km in phase 1, 3.1 km in phase 2, 5.5 km in phase 3 and then 4.5 km per minute.
+
+**Horizontal modules** (the next one is picked by weight, per phase):
+
+| Module | What it is | Length | P1 | P2 | P3 | P4 |
+|---|---|---|---|---|---|---|
+| Straight | open road | 200–2000 m (6.5) | 100 | 40 | 25 | 15 |
+| Curve | one clothoid–arc–clothoid, θ 10–45° | 200–900 m | 0 | 35 | 25 | 20 |
+| Sweeping bend | R 3000–5000 m, θ 25–60°; a relief section where the car can stay fast (`s_hold` ≤ 0.31 at 342 km/h) | 1.1–3.0 km | 0 | 25 | 10 | 8 |
+| S-curve | two opposite curves, clothoid to clothoid, no straight between | 400–1000 m | 0 | 0 | 20 | 22 |
+| Curve sequence | 3–5 curves, alternating direction (at most one same-direction pair), clothoid to clothoid | 1.2–3.0 km | 0 | 0 | 10 | 20 |
+| Tightening curve | one curve whose radius falls from `R1` to `R2` through a second clothoid (`R2 ≥ 0.6 × R1`) | 300–900 m | 0 | 0 | 10 | 15 |
+| **Sum** | | | 100 | 100 | 100 | 100 |
+
+- **Varied radii inside safe limits:** each curve draws `R` between the phase minimum and maximum (6.5). In S-curves and sequences the ratio of neighbouring radii is `0.7 ≤ R_(i+1) / R_i ≤ 1.4`, so the speed the player needs changes gradually. The **first** curve of a sequence has `R_1 ≥ 1.2 × min(R_i)`, so the tightest curve is never the entry (the player is eased in).
+- Tightening curves put chevrons (3.2) at the start of the tight part, at 80 m spacing.
+- A curve module is never directly followed by another curve module of the same kind more than once (variety); at most **2 straights in a row**, and no stretch of **more than 3 km** (phase 1: 1.5 km) without a curve, a hill wave or a structure.
+- Speeds in curves, the downhill rule and the survivable limits stay as in 6.3.
+
+**Vertical modules** (chosen per horizontal module, share of road length):
+
+| Module | What it is | P1 | P2 | P3 | P4 |
+|---|---|---|---|---|---|
+| Level | grade within ±0.5 % | 100 % | 70 % | 35 % | 25 % |
+| Grade | one constant grade 400–2000 m, 1–2.5 % in P2, up to 4 % later | 0 | 30 % | 35 % | 30 % |
+| Roller (wave) | 2–4 crests and dips in a row, grades ±1.5–4 %, crest R ≥ 20 000 m, sag R 9 000–15 000 m; one wave (crest + dip) is 1.8–3.0 km long | 0 | 0 | 30 % | 45 % |
+
+- **Hills with curves:** a curve may lie on a dip or on a hillside, never over a crest zone (150 m before to 300 m after a crest top, 6.8 F3) when `R < 2000 m`. A curve on a long downhill follows 6.3 (no `R < 1000 m` on or within 1500 m after a downhill steeper than −2 %).
+- A sag is where the car is fastest on a roller; the curve rules above already keep tight curves away from it.
+
+**Structure modules** (placed in slots, see below):
+
+| Module | Length | Host (where it can lie) | Content |
+|---|---|---|---|
+| Overpass (not a slot) | 20–40 m | any open section; zone rhythm below | other road or track crossing above: farm track (6 m wide), local road (10–12 m), rail bridge (12 m), city street bridge (15–25 m, with a tram in city later), two-span Autobahn flyover (25–35 m, central pier behind the median rail). Clearance 4.7 m (5.0 m in a trench). |
+| Interchange `a` (Anschlussstelle) | 800–1300 m | straight or `R ≥ 1500 m` | **Visible slip roads beside the road:** an exit ramp and an entry ramp on the player's left (the traffic's right). Each ramp: 120 m taper, a gore with guardrail and a grass wedge 60–100 m long, 200 m parallel, then it swings away to 60 m lateral offset within 500 m and ends at a local street (a roundabout in the distance in city and suburb). Ramp width 6.5 m with its own lane marks. One local-road overpass crosses the main road inside the module. Ramps never join the main road in the game. |
+| Junction `b` (Kreuz / Dreieck) | 1300–2200 m | straight or `R ≥ 2000 m` | Everything of `a`, plus: **a road splitting in the distance**: the opposite carriageway on the player's right swings away (median widens from 4 m to 40–90 m over 500 m, stays 300 m, returns over 500 m), and a two-lane ramp flyover (deck 7–9 m above the road, 120–200 m long) crosses above the main road. The player's road keeps 4 lanes and its alignment. |
+| Level crossing (player above) | 100–250 m | straight or `R ≥ 1000 m` | The player's road runs on a short bridge 5–8 m above a street, rail line or canal. The street below is visible with 0–3 decorative cars. |
+| River bridge | 250–800 m | straight or `R ≥ 1000 m` | Bridge with piers: deck 8–20 m above water, concrete columns in the water every 30–45 m, parapets on both sides (collision line), water and banks below. |
+| Valley viaduct (6.4) | 500–1500 m | straight or `R ≥ 720 m` | Deck 20–80 m up; tapering piers every 40–60 m, visible below the deck on both sides. |
+| Trench (Tieflage) | 500–1500 m | **city zone, straight only** | Road 4–8 m below the street level between concrete retaining walls (5–8 m high, panels 4 m wide) standing **2.5 m behind the rail**; a street bridge every 120–250 m (the rhythm); 150–250 m ramps (≤ 4 % grade) at both ends; it may end in an underground tunnel. |
+| Tunnels (6.4) | as 6.4 | as 6.4 | unchanged (mound tunnel, underground tunnel; the schedule of 6.4 stays) |
+
+- **Decorative vehicles** (0–3 per ramp, per level crossing, 60–90 km/h) reuse traffic models, have no collider, are not counted in the traffic density, and never enter the main carriageway.
+- **Slots:** after each slot structure ends, the next slot opens after a gap of **P2 1.0–2.4 km, P3 0.9–2.0 km, P4 0.8–1.8 km** (none in phase 1 and none before 0.8 km). At a slot the generator picks a type by weight among those the zone and host allow (6.7), then renormalizes:
+
+| Slot type | P2 | P3 | P4 |
+|---|---|---|---|
+| Interchange `a` | 25 | 22 | 20 |
+| Junction `b` | 0 | 6 | 10 |
+| Level crossing | 15 | 14 | 13 |
+| River bridge | 15 | 14 | 13 |
+| Valley viaduct | 15 | 14 | 14 |
+| Trench (city only) | 0 | 10 | 12 |
+| Plain gap (nothing) | 30 | 20 | 18 |
+| **Sum** | 100 | 100 | 100 |
+
+- Tunnels keep their own schedule (6.4) and are not slots. Any two structures (slot structures and tunnels) keep **700 m** between them; trench is one structure, its street bridges are not.
+- **Overpass rhythm by zone:** city 300–900 m between overpasses, suburb 600–1500 m, industrial 700–1800 m, countryside 1500–3500 m (farm tracks); in a trench 120–250 m. Minimum spacing 150 m (300 m outside a trench). The first overpass comes after 500 m.
+- **Counts for a typical 12 km run** (3 minutes): about 3–4 tunnels, 3 interchanges or junctions, 2 level crossings, 2 bridges, 2 viaducts, 10–14 overpasses, 1–2 trench stretches in the city zones.
+
+**What each phase allows:**
+
+| | Phase 1 | Phase 2 | Phase 3 | Phase 4 |
+|---|---|---|---|---|
+| Horizontal | straight | + curve (R ≥ 1200), sweeping bend | + S-curve and curve sequence (R ≥ 900), tightening curve | all, R down to 600 m |
+| Vertical | level | + grades ≤ 2.5 % | + rollers, grades ≤ 4 % | rollers 45 % |
+| Structures | overpasses after 500 m | + slots, tunnels (after 1.5 km) | + junction `b`, trench | all weights of the table |
+
+### 6.7 Scenery zones
+
+The scenery along the road is a **zone** tag over road distance `d` (a fourth layer next to 6.1): city, suburb, industrial, countryside. Zones change along the road and need not match the difficulty phase.
+
+| Parameter | City | Suburb | Industrial | Countryside / forest |
+|---|---|---|---|---|
+| Zone length | 1.2–3.0 km | 1.0–2.5 km | 0.8–2.0 km | 2.0–5.0 km |
+| Share of road length | 35 % | 25 % | 15 % | 25 % |
+| **Setback** of the building line from the outer rail (player's left) | 15–35 m | 25–60 m | 30–80 m | forest edge 10–25 m, farms 120–400 m |
+| Setback from the median rail (player's right, across the other carriageway) | 40–100 m | 55–130 m | 65–150 m | 60–300 m |
+| **Height** | 6–25 floors (19–80 m): 40 % 6–10 floors, 40 % 10–16, 20 % 16–25 | 2–5 floors (7–16 m): houses 2–3 floors, blocks 4–5 | warehouses 8–15 m, silos and tanks 20–45 m, chimneys 60–100 m (at most 1 per 600 m) | trees 10–25 m, farms 6–10 m |
+| **Density** per 100 m of road (per side) | left 5–7, right 3–4 | left 6–10, right 4–6 | left 2–3, right 1–2, plus 1 silo or tank per 200 m | trees 6–10 (forest edge 12–20) |
+| Building footprint (along × deep) | 25–60 × 20–45 m | 10–20 × 10–15 m | 40–120 × 30–60 m | 15–30 × 10–20 m |
+| **Gap** between buildings | 6–20 m; a street gap of 20–35 m every 3–5 buildings; at least 70 % of the left side is building line | 8–30 m | 20–80 m | – |
+| **Noise wall** (3–6 m behind the rail, outside side only) | 4 m high on 60 % of the length | 3 m on 40 % | 3 m on 20 % | none |
+| **Embankment / berm** | none (walls, trench) | 2–4 m, slope 1 : 2, 8–14 m from the rail, planted, on 40 % | 1.5–3 m on 25 % | terrain follows the hills: embankments 1 : 2.5–1 : 3, cuttings 2–6 m, on 40 % |
+| Lamp posts (median, double arm, 9 m) | every 40 m | every 80 m | every 60 m | none |
+| Min curve radius in the zone | 1000 m | 720 m | 720 m | 600 m |
+| Structures allowed | underground tunnel, trench, river bridge, interchange, junction, level crossing | mound and underground tunnel, viaduct, river bridge, interchange, junction, level crossing | river bridge, interchange, junction, level crossing (rail bridge) | mound tunnel, valley viaduct, river bridge, farm-track overpass, interchange `a` at half weight |
+
+- **Order:** countryside → suburb → city or industrial; city ↔ industrial and suburb ↔ any are allowed; countryside never touches city directly. **Start:** suburb for 800–1200 m, then city.
+- **Transitions:** 300–500 m. Density and the height cap ramp linearly from the old zone to the new one; a gateway object (overpass or sign gantry, seen from behind) stands at the border.
+- The scenery inside a zone is chosen from the module of 6.6 only through the allowed structures and the minimum radius; terrain is flat in city and industrial zones, hilly in countryside.
+- Side rules for noise walls, berms and cuttings in curves: 6.8 F2.
+
+### 6.8 Fairness rules for scenery and structures
+
+Scenery must never reduce the readable time of 5.2. All distances are measured from the nearest rail. "Tall" here means higher than **1.0 m**.
+
+| # | Rule |
+|---|---|
+| F1 | **Clear zone:** within **3.0 m** of either rail only rails, delineators (0.8 m), lamp posts (≤ 0.4 m wide, in the median) and sign posts may stand. Noise walls, berms and walls start at 3.0 m or more (trench walls at 2.5 m, the one exception, straight only). |
+| F2 | **Curve inside clearance:** on the inner side of every curve, from the clothoid start to the clothoid end, nothing tall within `c(R) = max(15 m, 31 250 / R − 1.6 m)` of the inner rail: R 600 m → 50 m, 720 m → 42 m, 1000 m → 30 m, 1200 m → 24 m, 1500 m → 19 m, R ≥ 2000 m → 15 m. (Derived from the chord offset `S² / 8R` for `S` = 500 m, an inner-lane eye 2.6 m from the rail and 1 m margin.) Inside the clearance only lawn, hedges and walls ≤ 1.0 m; **no cutting, berm or noise wall on the inside**. The outside of a curve is free. On S-curves and sequences each curve has its own inner side. |
+| F3 | **Crest zone:** from 150 m before to 300 m after every crest top nothing taller than 3 m within 30 m of either rail, and no overpass or gantry (vehicles rise against the sky; clutter would hide them). |
+| F4 | **Portals and viaduct ends:** from 300 m before to 100 m after each tunnel portal and viaduct or bridge abutment no building within 60 m of the rail, no overpass or gantry within 200 m before it (as the 200 m straight of 6.4). |
+| F5 | **Interchange sight triangle:** from 150 m before to 150 m after a gore tip nothing taller than 1.0 m within 60 m of the main rail on the ramp side; the ramp stays within 1.0 m of the road height for its first 150 m; no ramp flyover within 200 m of a gore. |
+| F6 | **Overpass:** piers outside the rails, in the median only behind the median rail (columns 0.8 m thick); deck underside 4.7 m; shadow quad as in 5.4. |
+| F7 | **Trench:** straight only (a curved trench would put a wall inside F2), walls ≥ 2.5 m behind the rail, street bridges every 120–250 m, light level 90 % of open road. |
+| F8 | **Readability:** facade palette mid to dark, low saturation, no flat white or light grey surfaces wider than 30 m; no strongly saturated scenery colours within 40 m of the lane (the designer's palette). Vehicles must stay the highest-contrast moving objects. |
+| F9 | **Decorative vehicles** never stand on the main carriageway and never count as traffic (6.6). |
+
+### 6.9 Speed feel
+
+At 300 km/h the car covers 83 m/s. The scenery gives speed through **near objects in a steady rhythm**:
+
+- **Near field:** within 10 m of the rail, a vertical object every **40–55 m** in every zone (delineators every 50 m already; city lamp posts every 40 m; noise-wall posts every 4 m; trees every 15–25 m at forest edges). That is 1.5–2 passes per second at 300 km/h and never above 3 per second.
+- **Building wall:** in the city zone at least 70 % of the left side is building line (6.7); facades have a regular window grid (3.2 m floor pitch, 3.6 m bay pitch). No uniform plain surface wider than 30 m.
+- **Parallax layers:** in city and suburb at least one object taller than 8 m in the 20–60 m band every 100 m, and the skyline (30–120 m band) varies in height by at least ±30 %.
+- **Rhythm objects:** km posts every 500 m, overpasses by zone rhythm (6.6), sign gantries every 1.0–1.5 km (back faces, later), tunnel lamp rows.
+- Rhythm spacings get ±20 % random jitter on the far field only; the near field (first 10 m) stays regular so the pass rate reads as a steady beat.
+
+### 6.10 Performance limits for scenery
+
+Constraints for the developer (starting values for the Galaxy Tab S7, 60 fps, chunks of 100 m as in decision 28):
+
+| # | Limit |
+|---|---|
+| C1 | **Triangles in view:** all scenery ≤ **60 000** (0–400 m: ≤ 8 000 per chunk; 400–900 m: ≤ 3 000; 900–1500 m: ≤ 1 000; that is 32 000 + 15 000 + 6 000 = 53 000). |
+| C2 | **Objects per 100 m chunk** (both sides, without trees, lamps, delineators): city ≤ **14** buildings, suburb ≤ **24** houses, industrial ≤ **10** (silos and tanks included), countryside ≤ **4**. Trees ≤ **60** per chunk (full mesh up to 150 m, then crossed billboards of 8 triangles, ≤ 25 per chunk beyond 300 m). |
+| C3 | **LOD:** buildings full to 400 m (≤ 120 triangles each), box LOD to 900 m (≤ 24), a merged skyline strip (≤ 100 triangles per chunk side) to 1500 m. |
+| C4 | **Instancing:** one prefab per building type, drawn instanced (`Graphics.DrawMeshInstanced` or SRP-Batcher batches) with a per-instance tint; ≤ **24** scenery meshes, ≤ **6** scenery materials, ≤ **60** scenery draw calls per frame. |
+| C5 | **Textures:** one facade atlas ≤ 2048², compressed (≈ 3 MB), windows in the texture, no window geometry; scenery textures ≤ **24 MB**, meshes ≤ **12 MB** in total. |
+| C6 | **Shadows and transparency:** no real-time shadows from scenery (blob shadows only, decision 40); alpha only for tree billboards and glass on bridges; no overdraw layers over the road. |
+| C7 | **Chunk build:** ≤ **2 ms** CPU per chunk, at most **1** chunk per frame, objects pooled with the chunks (no allocation during a run); decoration comes from a deterministic seed per chunk, so a chunk looks the same when it is rebuilt. |
+| C8 | **Structure meshes:** ≤ 3 000 triangles per bridge or overpass, viaduct and bridge piers instanced (≤ 16 in view), ramps and trench walls from the road mesh pipeline (≤ 1 000 triangles per 100 m). |
+| C9 | **GPU time:** scenery ≤ **2.0 ms** on the Tab S7. If the frame time stays above 14 ms for 2 s, drop in this order: trees beyond 150 m off, building LOD distances × 0.7, draw distance 1.5 → 1.0 km (decision 2). |
+| C10 | The sight and spawn rules (5.3, 5.4) are never reduced by performance steps: vehicles still appear at the spawn distance; only scenery is cut. |
 
 ---
 
