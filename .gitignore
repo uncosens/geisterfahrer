@@ -26,3 +26,6 @@ Thumbs.db
 /Assets/ThirdParty.meta
 /Assets/Resources/
 /Assets/Resources.meta
+
+# Downloaded model sources (kept next to the project, licences may forbid redistribution)
+/ThirdPartySources/
