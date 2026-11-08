@@ -41,7 +41,7 @@ namespace Geisterfahrer.Editor
                 File.WriteAllBytes($"docs/dev/shots/city-{name}.png", tex.EncodeToPNG());
                 int tris = 0, calls = 0; // the scenery in view: meshes named Mass, Detail, Sky (one material each = one draw call each)
                 foreach (var mf in Object.FindObjectsByType<MeshFilter>(FindObjectsSortMode.None))
-                    if ((mf.name == "Mass" || mf.name == "Detail" || mf.name == "Sky") && mf.gameObject.activeInHierarchy) { tris += mf.sharedMesh.triangles.Length / 3; if (mf.sharedMesh.triangles.Length > 0) calls++; }
+                    if ((mf.name == "Mass" || mf.name == "Detail" || mf.name == "Sky" || mf.name == "Trees" || mf.name == "Props") && mf.gameObject.activeInHierarchy) { tris += mf.sharedMesh.triangles.Length / 3; if (mf.sharedMesh.triangles.Length > 0) calls++; }
                 Debug.Log($"CITY {name} at {s:F0} zone {track.Zones.At(s + 100)} scenery tris {tris} calls {calls}");
             }
 
@@ -50,8 +50,14 @@ namespace Geisterfahrer.Editor
                     if (track.Zones.At(s) == z && track.Zones.At(s + 400) == z && track.Zones.At(s - 100) == z && track.KindAt(s + 100) == Section.Open && track.KindAt(s + 300) == Section.Open)
                     { Shot(z.ToString().ToLower(), s + 100); if (z == Zone.City) { Shot("city-before", s + 100, false); } break; }
 
+            // Quality ladder: the same city view at ladder steps 0, 5 and 10 (triangles and draw calls in the log).
+            foreach (int lv in new[] { 0, 5, 10 }) { Game.TrackView.QualityLevel = lv; Shot("ladder" + lv, 6625 + 100); }
+            Game.TrackView.QualityLevel = 0;
+            // A zone border with the skyline rising and a gantry: the first border into the city.
+            for (double s = 1600; s < 13000; s += 25)
+                if (track.Zones.At(s - 30) != Zone.City && track.Zones.At(s + 30) == Zone.City && track.KindAt(s) == Section.Open) { Shot("gateway", s - 80); Shot("gateway-in", s + 250); break; }
             // Structures: the first seed that has each kind.
-            foreach (var (kind, label, offs) in new[] { (Section.Interchange, "interchange", new[] { -60.0, 100, 400 }), (Section.Trench, "trench", new[] { -150.0, 300, 450 }), (Section.Bridge, "bridge", new[] { -100.0, 60, 150 }) })
+            foreach (var (kind, label, offs) in new[] { (Section.Interchange, "interchange", new[] { -60.0, 100, 400 }), (Section.Trench, "trench", new[] { -150.0, 300, 450 }), (Section.Bridge, "bridge", new[] { -100.0, 60, 150 }), (Section.Junction, "junction", new[] { -60.0, 600, 900 }), (Section.Crossing, "crossing", new[] { -80.0, 20, 60 }) })
             {
                 Track t2 = null; (double s0, double s1, Section kind) found = default;
                 for (int seed = 1; seed < 80 && t2 == null; seed++)

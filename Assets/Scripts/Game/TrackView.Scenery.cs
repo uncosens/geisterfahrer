@@ -57,12 +57,15 @@ namespace Geisterfahrer.Game
         static readonly Kind Shed = new Kind { LenMin = 40, LenMax = 120, DepMin = 30, DepMax = 60, HMin = 8, HMax = 15, Slices = new[] { 5 }, Roof = Roof.LowPitch };
         static readonly Kind Farm = new Kind { LenMin = 15, LenMax = 30, DepMin = 10, DepMax = 20, HMin = 6, HMax = 10, Slices = new[] { 6 }, Roof = Roof.Gable };
 
-        static Kind PickKind(Zone z, System.Random r)
+        static readonly Kind LowBlock = new Kind { LenMin = 20, LenMax = 40, DepMin = 12, DepMax = 18, HMin = 9.6f, HMax = 16, Slices = new[] { 0, 1, 4 }, Roof = Roof.Flat };
+
+        // cluster (0..1, noise along the road): high values give a tower cluster, low values low buildings.
+        static Kind PickKind(Zone z, System.Random r, float cluster)
         {
             double q = r.NextDouble();
             switch (z)
             {
-                case Zone.City: return q < 0.35 ? Block_ : q < 0.55 ? Mixed : q < 0.7 ? Tower : Office;
+                case Zone.City: return cluster > 0.62 ? (q < 0.5 ? Tower : q < 0.85 ? Office : Block_) : cluster < 0.33 ? (q < 0.5 ? LowBlock : q < 0.8 ? Mixed : Block_) : (q < 0.35 ? Block_ : q < 0.55 ? Mixed : q < 0.7 ? Tower : Office);
                 case Zone.Suburb: return q < 0.6 ? House : SuburbBlock;
                 case Zone.Industrial: return Shed;
                 default: return Farm;
@@ -71,6 +74,32 @@ namespace Geisterfahrer.Game
 
         readonly Dictionary<GameObject, int> sceneryOf = new Dictionary<GameObject, int>(); // chunk object -> chunk index its scenery was built for
         public static int SceneryTriangles; // last build, for the budget check in the shots tool
+
+        // Runtime quality ladder (urban-spec section 5): steps 1-10 cut scenery when the frame time stays above 18 ms.
+        // Implemented steps: 2 trees beyond 150 m off, 3 billboards and pylon wires off, 4 facade mip bias +1, 5 LOD ranges x 0.7,
+        // 6 skyline from 400 m, 7 city lamps every 80 m, 8 road drawn to 1.0 km, 9 skyline to 1.1 km, 10 trees to 100 m.
+        // Steps 1 (balconies, plant boxes) and the far skyline layers do not exist yet.
+        readonly QualityLadder ladder = new QualityLadder();
+        public static int QualityLevel;
+        static Texture2DArray facadeArray;
+
+        float Ahead => QualityLevel >= 8 ? 1000 : 1500;
+        float LodK => QualityLevel >= 5 ? 0.7f : 1;
+        float MassR => MassRange * LodK;
+        float DetailR => DetailRange * LodK;
+        float TreeR => (QualityLevel >= 10 ? 100 : QualityLevel >= 2 ? 150 : 350) * LodK;
+        float SkyFrom => QualityLevel >= 6 ? 400 : MassR - 100;
+        float SkyTo => QualityLevel >= 9 ? 1100 : SkyRange;
+
+        void TickQuality()
+        {
+            int old = QualityLevel;
+            if (!ladder.Update(Mathf.Min(Time.unscaledDeltaTime, 0.25f))) return;
+            QualityLevel = ladder.Level;
+            Debug.Log($"SCENERY quality level {old} -> {QualityLevel} (average {ladder.LastAverageMs:F1} ms)");
+            if (facadeArray) facadeArray.mipMapBias = QualityLevel >= 4 ? 1 : 0;
+            if ((old >= 7) != (QualityLevel >= 7)) sceneryOf.Clear(); // lamp spacing changes: chunks rebuild one per frame
+        }
 
         // Solid scenery colour: slice 7 is plain white, the vertex colour is the colour (sRGB hex in, linear stored).
         static Color32 Solid(int hex)
@@ -82,8 +111,8 @@ namespace Geisterfahrer.Game
         // Instance tint of a textured wall: value 0.88-1.04, saturation untouched.
         static Color32 Tinted(int slice, System.Random r)
         {
-            byte v = (byte)Mathf.Min(255, 255 * Rnd(r, 0.88f, 1.04f));
-            return new Color32(v, v, v, (byte)(slice * 32));
+            float v = Rnd(r, 0.88f, 1.04f), hue = Rnd(r, -0.04f, 0.04f); // value and a small warm/cool shift inside the palette
+            return new Color32((byte)Mathf.Min(255, 255 * v * (1 + hue)), (byte)Mathf.Min(255, 255 * v), (byte)Mathf.Min(255, 255 * v * (1 - hue)), (byte)(slice * 32));
         }
 
         // One Texture2DArray, 8 slices of 256 px: facade tiles of 2 bays x 2 floors (7.2 x 6.4 m, 36 px per metre); alpha = smoothness.
@@ -141,6 +170,7 @@ namespace Geisterfahrer.Game
                 arr.SetPixels32(px, sl);
             }
             arr.Apply(true, false);
+            facadeArray = arr;
             return arr;
         }
 
@@ -168,22 +198,27 @@ namespace Geisterfahrer.Game
             chunk.transform.Find("Mass").gameObject.SetActive(false);
             chunk.transform.Find("Detail").gameObject.SetActive(false);
             chunk.transform.Find("Sky").gameObject.SetActive(false);
+            chunk.transform.Find("Trees").gameObject.SetActive(false);
+            chunk.transform.Find("Props").gameObject.SetActive(false);
         }
 
         // Called every frame after the chunks are placed: builds scenery for chunks that came in range, shows or hides by distance.
         void UpdateScenery(double s)
         {
+            TickQuality();
             int budget = SceneryPerFrame;
-            if (!SceneryOn) { foreach (var c in chunks.Values) foreach (var n in new[] { "Mass", "Detail", "Sky" }) c.transform.Find(n).gameObject.SetActive(false); return; }
+            if (!SceneryOn) { foreach (var c in chunks.Values) foreach (var n in new[] { "Mass", "Detail", "Sky", "Trees", "Props" }) c.transform.Find(n).gameObject.SetActive(false); return; }
             foreach (var kv in chunks)
             {
                 float dist = Mathf.Abs((kv.Key + 0.5f) * ChunkLen - (float)s);
                 var go = kv.Value;
                 bool built = sceneryOf.TryGetValue(go, out int idx) && idx == kv.Key;
-                if (!built && dist < SkyRange && budget > 0 && (kv.Key + 1) * ChunkLen + 150 < track.Generated) { BuildScenery(kv.Key, go); budget--; built = true; }
-                go.transform.Find("Mass").gameObject.SetActive(built && dist < MassRange);
-                go.transform.Find("Sky").gameObject.SetActive(built && dist >= MassRange - 100);
-                go.transform.Find("Detail").gameObject.SetActive(built && dist < DetailRange);
+                if (!built && dist < SkyTo && budget > 0 && (kv.Key + 1) * ChunkLen + 150 < track.Generated) { BuildScenery(kv.Key, go); budget--; built = true; }
+                go.transform.Find("Mass").gameObject.SetActive(built && dist < MassR);
+                go.transform.Find("Sky").gameObject.SetActive(built && dist >= SkyFrom && dist < SkyTo);
+                go.transform.Find("Detail").gameObject.SetActive(built && dist < DetailR);
+                go.transform.Find("Trees").gameObject.SetActive(built && dist < TreeR);
+                go.transform.Find("Props").gameObject.SetActive(built && QualityLevel < 3 && dist < MassR);
             }
         }
 
@@ -192,7 +227,7 @@ namespace Geisterfahrer.Game
         {
             foreach (var st in track.Structures)
             {
-                double m = st.kind == Section.Tunnel ? 330 : st.kind == Section.Interchange ? 160 : 120;
+                double m = st.kind == Section.Tunnel ? 330 : st.kind == Section.Interchange || st.kind == Section.Junction ? 160 : 120;
                 if (st.s0 < b + m && st.s1 > a - m) return false;
             }
             foreach (double o in track.Overpasses) if (o > a - 60 && o < b + 60) return false;
@@ -221,11 +256,12 @@ namespace Geisterfahrer.Game
         {
             sceneryOf[chunk] = index;
             double s0 = index * ChunkLen, s1 = s0 + ChunkLen, mid = (s0 + s1) / 2;
-            var mass = new Builder(); var detail = new Builder(); var sky = new Builder();
-            if (index >= 0 && OpenRoad(s0, s1))
+            var mass = new Builder(); var detail = new Builder(); var sky = new Builder(); var trees = new Builder(); var props = new Builder();
+            bool open = index >= 0 && OpenRoad(s0, s1);
+            var zone = track.Zones.At(mid);
+            if (open)
             {
                 var rnd = new System.Random(index * 104729 + 11);
-                var zone = track.Zones.At(mid);
                 var st = Styles[(int)zone];
                 bool border = track.Zones.NearBorder(mid, 250); // density ramps down towards a zone border
                 CurveClearance(s0, s1, out float clearL, out float clearR);
@@ -234,20 +270,27 @@ namespace Geisterfahrer.Game
                 {
                     var sd = side < 0 ? st.Left : st.Right;
                     float clear = Mathf.Max(side < 0 ? clearL : clearR, crest ? 30 : 0);
+                    // City: towers cluster (noise along the road), low blocks between, and now and then a park gap.
+                    float cluster = Mathf.PerlinNoise((float)mid * 0.0045f + side * 31, 7.3f);
+                    bool park = zone == Zone.City && rnd.NextDouble() < 0.12;
                     // Buildings: a row with random gaps; each fits inside this chunk, so neighbours never overlap.
                     int placed = 0, streetIn = rnd.Next(3, 6);
                     double cur = s0 + 2 + rnd.NextDouble() * sd.GapMin;
-                    var first = PickKind(zone, rnd);
-                    while (cur < s1 - 12 && placed < sd.Max)
+                    while (cur < s1 - 12 && placed < sd.Max && !park)
                     {
-                        var k = placed == 0 ? first : PickKind(zone, rnd);
+                        var k = PickKind(zone, rnd, cluster);
                         float len = Mathf.Min(Rnd(rnd, k.LenMin, k.LenMax), (float)(s1 - 2 - cur)), dep = Rnd(rnd, k.DepMin, k.DepMax);
-                        float h = Rnd(rnd, k.HMin, k.HMax), set = Mathf.Max(Rnd(rnd, sd.SetMin, sd.SetMax), clear);
+                        float h = Rnd(rnd, k.HMin, k.HMax) * (zone == Zone.City ? Rnd(rnd, 0.75f, 1.2f) : 1), set = Mathf.Max(Rnd(rnd, sd.SetMin, sd.SetMax), clear);
                         if (len >= k.LenMin * 0.7f && !(border && rnd.NextDouble() < 0.5))
                         {
                             int slice = k.Slices[rnd.Next(k.Slices.Length)];
                             mass.Block(cur + len / 2, side * (Rail + set + dep / 2), len, dep, h, Tinted(slice, rnd), k.Roof, Solid(k.Roof == Roof.Flat ? 0x6E7174 : k.Roof == Roof.Gable ? 0x4A4D52 : 0x9AA3A6), (float)rnd.NextDouble());
                             placed++;
+                            if (zone == Zone.Suburb && k.Roof == Roof.Gable && set - 1.5f >= clear) // hedge along the plot front
+                            {
+                                detail.Tint = Solid(0x4F6A3A);
+                                detail.Box(cur + len / 2, side * (Rail + set - 1.5f), 0.9f, len, 0.8f, 1.8f, Sub);
+                            }
                         }
                         float gap = Rnd(rnd, sd.GapMin, sd.GapMax);
                         if (--streetIn <= 0) { gap = Rnd(rnd, 20, 35); streetIn = rnd.Next(3, 6); } // a street gap every 3-5 buildings
@@ -262,9 +305,16 @@ namespace Geisterfahrer.Game
                             mass.Tint = Solid(0x5E6469);
                             mass.Box(s - 4, -(Rail + 3.9f), st.NoiseH / 2, 0.25f, 0.5f, st.NoiseH, Sub); // post
                         }
-                    // Median lamp posts, double arm, 9 m (F1: 0.15 m wide pole), right side only.
-                    if (side > 0 && st.LampSpacing > 0)
-                        for (double s = Mathf.Ceil((float)(s0 / st.LampSpacing)) * st.LampSpacing; s < s1; s += st.LampSpacing)
+                    // Suburb mound (berm): 2-4 m high, slope 1 : 2, 8-14 m from the rail, on 40 % of the chunks, outer side.
+                    if (side < 0 && zone == Zone.Suburb && clearL == 0 && !crest && rnd.NextDouble() < 0.4)
+                    {
+                        mass.Tint = Solid(0x6F8A3E);
+                        mass.Berm(s0 + 3, s1 - 3, -(Rail + Rnd(rnd, 8, 14)), Rnd(rnd, 2, 4));
+                    }
+                    // Median lamp posts, double arm, 9 m (F1: 0.15 m wide pole), right side only. Ladder step 7: twice the spacing in the city.
+                    float lamp = st.LampSpacing * (QualityLevel >= 7 && zone == Zone.City ? 2 : 1);
+                    if (side > 0 && lamp > 0)
+                        for (double s = Mathf.Ceil((float)(s0 / lamp)) * lamp; s < s1; s += lamp)
                         {
                             detail.Tint = Solid(0x9AA0A5);
                             detail.Box(s, Rail + 1.4f, 4.5f, 0.15f, 0.15f, 9f, Sub);
@@ -272,34 +322,84 @@ namespace Geisterfahrer.Game
                             detail.Box(s, Rail + 0.2f, 9.1f, 0.6f, 1.6f, 0.12f, Sub);
                             detail.Box(s, Rail + 2.6f, 9.1f, 0.6f, 1.6f, 0.12f, Sub);
                         }
-                    for (int i = 0; i < st.Trees; i++)
+                    int nTrees = st.Trees + (park ? 10 : 0);
+                    for (int i = 0; i < nTrees; i++)
                     {
                         double s = s0 + rnd.NextDouble() * ChunkLen;
                         float d = side * (Rail + Mathf.Max(Rnd(rnd, st.TreeNear, st.TreeFar), clear)), k = 0.8f + (float)rnd.NextDouble() * 0.7f;
-                        detail.Tint = Solid(0x4E3B2B);
-                        detail.Box(s, d, 1.1f * k, 0.4f * k, 0.4f * k, 2.2f * k, Sub);
-                        detail.Tint = Solid(0x3E5233);
-                        detail.Box(s, d, 3.2f * k, 3f * k, 3f * k, 2.6f * k, Sub);
-                        detail.Box(s, d, 5.1f * k, 2f * k, 2f * k, 2f * k, Sub);
+                        trees.Tint = Solid(0x4E3B2B);
+                        trees.Box(s, d, 1.1f * k, 0.4f * k, 0.4f * k, 2.2f * k, Sub);
+                        trees.Tint = Solid(rnd.NextDouble() < 0.5 ? 0x3E5233 : 0x55684A);
+                        trees.Box(s, d, 3.2f * k, 3f * k, 3f * k, 2.6f * k, Sub);
+                        trees.Box(s, d, 5.1f * k, 2f * k, 2f * k, 2f * k, Sub);
+                    }
+                    // Billboard (props, off at ladder step 3): city and industrial, left ones face the player, right ones are seen from behind.
+                    if ((zone == Zone.City || zone == Zone.Industrial) && clear == 0 && (side < 0 ? index % 5 == 2 : index % 10 == 7))
+                    {
+                        double s = s0 + 30 + rnd.NextDouble() * 40; float d = side * (Rail + (side < 0 ? Rnd(rnd, 25, 45) : Rnd(rnd, 45, 70)));
+                        props.Tint = Solid(0x8B9097);
+                        props.Box(s, d - 3.5f, 3f, 0.5f, 0.5f, 6f, Sub); props.Box(s, d + 3.5f, 3f, 0.5f, 0.5f, 6f, Sub);
+                        props.Box(s, d, 7.7f, 0.15f, 9f, 3.4f, Sub);
+                        if (side < 0)
+                        {
+                            int[] ads = { 0x2F5D8A, 0x2E7D78, 0x3F7A4A, 0xC9A93A };
+                            for (int a = 0; a < 3; a++) { props.Tint = Solid(ads[rnd.Next(4)]); props.Box(s - 0.1, d + (a - 1) * 3f, 7.7f, 0.05f, 2.8f, 3f, Sub); }
+                        }
                     }
                 }
-                // Industrial landmarks: a silo or tank every 200 m, a chimney at most every 600 m (beyond 300 m only: the mass mesh).
+                // Pylon line: suburb, industrial, countryside; a mast every 300 m, 60-120 m from the road, the same side along a group of 3 chunks.
+                if (zone != Zone.City)
+                {
+                    var rp = new System.Random((index / 3) * 911 + 5);
+                    int pside = rp.Next(2) * 2 - 1; float pd = pside * (Rail + 60 + (float)rp.NextDouble() * 60), ph = 45 + (float)rp.NextDouble() * 15;
+                    if (index % 3 == 1)
+                    {
+                        double s = s0 + 40; mass.Tint = Solid(0x8F989A);
+                        foreach (float lx in new[] { -2.2f, 2.2f }) foreach (float lz in new[] { -2.2f, 2.2f }) mass.Box(s + lz, pd + lx, ph * 0.25f, 0.5f, 0.5f, ph * 0.5f, Sub);       // lower legs
+                        foreach (float lx in new[] { -1.2f, 1.2f }) foreach (float lz in new[] { -1.2f, 1.2f }) mass.Box(s + lz, pd + lx, ph * 0.75f, 0.4f, 0.4f, ph * 0.5f, Sub);  // upper legs
+                        for (int a = 0; a < 3; a++) mass.Box(s, pd, ph - 4 - a * 6, 0.4f, 12 - a * 2f, 0.4f, Sub);                                                                 // cross arms
+                    }
+                    props.Tint = Solid(0x6B7075); // the lines: three wires along the road, sagging not drawn
+                    for (int a = 0; a < 3; a++) props.Box(s0 + ChunkLen / 2, pd + (a - 1) * 5f, ph - 4 - a * 0.5f, ChunkLen, 0.1f, 0.1f, Sub);
+                }
+                // Industrial landmarks: yard, a silo or tank every 200 m, a chimney at most every 600 m.
                 if (zone == Zone.Industrial)
                 {
                     mass.Tint = Solid(0xA9ACA8);
                     if (index % 2 == 0) mass.Cyl(s0 + 50, -(Rail + 45 + (float)rnd.NextDouble() * 30), Rnd(rnd, 3, 6), Rnd(rnd, 20, 45));
                     if (index % 6 == 3) mass.Cyl(s0 + 30, -(Rail + 70), 2, Rnd(rnd, 60, 100));
+                    if (index % 2 == 1 && clearL == 0 && !crest) // container yard: stacks of 2-3 in blue, green and grey only
+                    {
+                        int[] cc = { 0x3F5C86, 0x566F5F, 0x8B9097 };
+                        for (int row = 0; row < 2; row++)
+                            for (int col = 0; col < 3; col++)
+                            {
+                                int n = rnd.Next(1, 4);
+                                for (int l = 0; l < n; l++) { mass.Tint = Solid(cc[rnd.Next(3)]); mass.Box(s0 + 15 + col * 7, -(Rail + 36 + row * 3), 1.3f + l * 2.6f, 6f, 2.5f, 2.6f, Sub); }
+                            }
+                    }
+                }
+                // Gantry at a zone border (seen from behind): two posts, a truss, two sign panels.
+                foreach (double bs in track.Zones.Borders(s0, s1))
+                {
+                    if (crest || !OpenRoad(bs - 150, bs + 20)) continue;
+                    double s = Mathf.Floor((float)bs / 4) * 4; float w = Rail + 1.5f;
+                    mass.Tint = Solid(0x8B9097);
+                    mass.Box(s, -w, 3.5f, 0.5f, 0.5f, 7f, Sub); mass.Box(s, w, 3.5f, 0.5f, 0.5f, 7f, Sub);
+                    mass.Box(s, 0, 6.6f, 0.9f, 2 * w, 0.9f, Sub);
+                    foreach (float dx in new[] { -4.5f, 4.5f }) { mass.Box(s, dx, 8.5f, 0.12f, 6f, 2.2f, Sub); }
                 }
             }
             // Skyline strip (900-1500 m): a few merged flat-coloured boxes behind the building line, at most 5 per side = 100 triangles.
-            if (index >= 0 && track.Zones.At(mid) != Zone.Country && OpenRoad(s0, s1))
+            // It rises out of the ground over the 400 m after a zone border (urban-spec 1.5), so a city grows into view.
+            if (index >= 0 && zone != Zone.Country && open)
             {
                 var rs = new System.Random(index * 7727 + 3);
-                var zn = track.Zones.At(mid);
+                float rise = Mathf.Clamp01((float)track.Zones.DistanceToBorder(mid, 400) / 400);
                 foreach (int side in new[] { -1, 1 })
                     for (int i = 0; i < 5; i++)
                     {
-                        float h = zn == Zone.City ? Rnd(rs, 25, 112) : zn == Zone.Industrial ? Rnd(rs, 8, 15) : Rnd(rs, 8, 16);
+                        float h = (zone == Zone.City ? Rnd(rs, 25, 112) : zone == Zone.Industrial ? Rnd(rs, 8, 15) : Rnd(rs, 8, 16)) * Mathf.Lerp(0.1f, 1, rise);
                         float tone = Rnd(rs, 0x7E, 0x8E);
                         sky.Tint = new Color32((byte)tone, (byte)(tone + 12), (byte)(tone + 22), 7 * 32);
                         double sPos = s0 + 10 + i * 18 + rs.NextDouble() * 6;
@@ -309,6 +409,8 @@ namespace Geisterfahrer.Game
             Fill(chunk.transform.Find("Mass").gameObject, mass);
             Fill(chunk.transform.Find("Detail").gameObject, detail);
             Fill(chunk.transform.Find("Sky").gameObject, sky);
+            Fill(chunk.transform.Find("Trees").gameObject, trees);
+            Fill(chunk.transform.Find("Props").gameObject, props);
         }
 
         static void Fill(GameObject go, Builder b)
@@ -356,7 +458,7 @@ namespace Geisterfahrer.Game
         {
             foreach (var st in track.Structures)
             {
-                if (st.kind != Section.Interchange || s < st.s0 || s >= st.s1) continue;
+                if ((st.kind != Section.Interchange && st.kind != Section.Junction) || s < st.s0 || s >= st.s1) continue;
                 // Exit ramp from the start, entry ramp towards the end (mirrored); the entry one sits 14 m further out where they overlap.
                 for (int r = 0; r < 2; r++)
                 {
@@ -434,6 +536,24 @@ namespace Geisterfahrer.Game
                 float l0 = Mathf.Min(c0 - w0 / 2, c0 + w0 / 2), r0 = Mathf.Max(c0 - w0 / 2, c0 + w0 / 2), l1 = Mathf.Min(c1 - w1 / 2, c1 + w1 / 2), r1 = Mathf.Max(c1 - w1 / 2, c1 + w1 / 2);
                 Quad(At(s0, l0, y), At(s1, l1, y1), At(s1, r1, y1), At(s0, r0, y), sub,
                     new Vector2(l0 / t, (float)(s0 / t)), new Vector2(l1 / t, (float)(s1 / t)), new Vector2(r1 / t, (float)(s1 / t)), new Vector2(r0 / t, (float)(s0 / t)));
+            }
+
+            // Earth mound along the road from sa to sb: inner slope 1 : 2 up to height h, a 4 m top, the outer slope, and both ends closed.
+            // d0 is the signed offset of the inner foot (negative = left side).
+            public void Berm(double sa, double sb, float d0, float h)
+            {
+                float k = d0 < 0 ? -1 : 1, a = Mathf.Abs(d0), b = a + 2 * h, c = b + 4, d = c + 2 * h;
+                var z = Vector2.zero;
+                // faces facing up/out: inner slope, top, outer slope (windings for the left side; mirrored for the right)
+                void Face(float da, float ya, float db, float yb)
+                {
+                    if (k < 0) Quad(At(sa, -db, yb), At(sb, -db, yb), At(sb, -da, ya), At(sa, -da, ya), Sub, z, z, z, z, true);
+                    else Quad(At(sa, da, ya), At(sb, da, ya), At(sb, db, yb), At(sa, db, yb), Sub, z, z, z, z, true);
+                }
+                Face(a, 0, b, h); Face(b, h, c, h); Face(c, h, d, 0);
+                // end caps (two-sided trapezoids)
+                foreach (double e in new[] { sa, sb })
+                    Quad(At(e, k * a, 0), At(e, k * b, h), At(e, k * c, h), At(e, k * d, 0), Sub, z, z, z, z, true);
             }
 
             // Flat round pad (roundabout) at (s, d).

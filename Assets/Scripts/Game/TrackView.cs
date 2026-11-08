@@ -9,7 +9,7 @@ namespace Geisterfahrer.Game
     // Core stays in road space (s, d); Place() is the only road-to-world mapping.
     public partial class TrackView : MonoBehaviour
     {
-        const float ChunkLen = 100, Ahead = 1500, Behind = 100, Rail = (float)Road.RailX, Lanes = (float)(Road.LaneCount * Road.LaneWidth / 2);
+        const float ChunkLen = 100, Behind = 100, Rail = (float)Road.RailX, Lanes = (float)(Road.LaneCount * Road.LaneWidth / 2);
         // Tunnel bore: vertical walls to Spring on the rail lines, then a half-ellipse vault of rise VaultH (GDD 6.4); earth Cover over it.
         const float Spring = 1.0f, VaultH = 6.5f, Cover = 1.2f;
         // Mound tunnel surroundings (decision 47): the hill over the bore is HillH high and eases in over HillRamp m; the road runs in a cutting
@@ -133,7 +133,7 @@ namespace Geisterfahrer.Game
                 {
                     foreach (int side in new[] { -1, 1 })
                         b.Wall(s, e, side * (Rail + 0.04f), 0.395f, 0.705f, (int)M.Steel);
-                    if (kind == Section.Viaduct || kind == Section.Bridge) // river bridge: same deck and parapets, piers stand in the water
+                    if (kind == Section.Viaduct || kind == Section.Bridge || kind == Section.Crossing) // river bridge and level crossing: same deck and parapets
                     {
                         foreach (int side in new[] { -1, 1 }) b.Box(mid, side * (Rail + 0.35f), 0.45f, 4, 0.3f, 0.9f, (int)M.Concrete);
                         b.Box(mid, 0, -1.05f, 4, Rail * 2 + 1, 1.8f, (int)M.Concrete); // deck slab, top 15 cm under the road (no z-fight)
@@ -151,7 +151,8 @@ namespace Geisterfahrer.Game
                     b.Strip(s, e, -400, -40, g0 - 0.05f, fieldL, 0, false, g1 - 0.05f);
                     b.Strip(s, e, 40, 400, g0 - 0.05f, fieldR, 0, false, g1 - 0.05f);
                 }
-                if (kind == Section.Interchange) Ramps(b, s, e);
+                if (kind == Section.Interchange || kind == Section.Junction) Ramps(b, s, e);
+                if (kind == Section.Crossing && Depth(mid, kind) > 3 && IsCrossingMid(mid)) b.Strip(s, e, -250, 250, -Depth(s, kind) + 0.08f, (int)M.Asphalt, 2.08f, false, -Depth(e, kind) + 0.08f); // the street below
                 if (kind == Section.Bridge && Depth(mid, kind) > 2.5f) b.Strip(s, e, -250, 250, -Depth(s, kind) + 0.5f, (int)M.Water, 0, false, -Depth(e, kind) + 0.5f);
             }
 
@@ -163,7 +164,7 @@ namespace Geisterfahrer.Game
                 if (kind == Section.Tunnel && s % (TunnelZone(s) ? 4 : 12) < 0.01) b.Box(s, 0, Spring + VaultH - 0.1f, 0.6f, 1.2f, 0.08f, (int)M.Lamp);
                 if (kind == Section.Underground && track.Covered(s) && s % 8 < 0.01)
                     foreach (int side in new[] { -1, 1 }) b.Box(s, side * 3.5f, BoxH - 0.1f, 0.6f, 1.2f, 0.08f, (int)M.Lamp);
-                if ((kind == Section.Viaduct || kind == Section.Bridge) && s % 40 < 0.01)
+                if ((kind == Section.Viaduct || kind == Section.Bridge || kind == Section.Crossing) && s % 40 < 0.01)
                     foreach (int side in new[] { -1, 1 }) b.Box(s, side * 5, -ValleyDepth(s) / 2, 2.5f, 2.5f, ValleyDepth(s), (int)M.Concrete);
                 // Chevron boards every 20 m on the outer side of curves under 1000 m, seen from behind (grey back, white frame).
                 double kappa = track.Curvature(s);
@@ -217,9 +218,25 @@ namespace Geisterfahrer.Game
                 {
                     float cut = (float)track.Depth(os);
                     if (cut > 4.9f) { b.Box(os, 0, cut - 0.55f, 12, 60, 1.2f, (int)M.Concrete); continue; } // street bridge over a trench, flush with the street
-                    b.Box(os, 0, 5.3f, 12, 60, 1.2f, (int)M.Concrete);
+                    // Type by zone (GDD 6.6): farm track 6 m, local road 11, rail bridge 12, city street 20, every fifth a two-span flyover 30 m.
+                    var oz = track.Zones.At(os);
+                    float ow = oz == Zone.Country ? 6 : oz == Zone.Suburb ? 11 : oz == Zone.Industrial ? 12 : 20;
+                    bool flyover = ((int)(os / 4) % 5) == 0;
+                    if (flyover) ow = 30;
+                    b.Box(os, 0, 5.3f, ow, 60, 1.2f, (int)M.Concrete);
                     foreach (float d in new[] { -Rail - 2, Rail + 2, 0f })
                         if (d != 0) b.Box(os, d, 2.35f, 1.2f, 1.2f, 4.7f, (int)M.Concrete);
+                    if (flyover) b.Box(os, Rail + 1.2f, 2.35f, 0.8f, 0.8f, 4.7f, (int)M.Concrete); // the central pier stands behind the median rail
+                }
+
+            // Junction b: a two-lane ramp flyover crosses above the road at 70 % of the module, deck 8.5 m up (GDD 6.6).
+            foreach (var st in track.Structures)
+                if (st.kind == Section.Junction)
+                {
+                    double fo = Mathf.Floor((float)(st.s0 + 0.7 * (st.s1 - st.s0)) / 4) * 4;
+                    if (fo < s0 || fo >= s1) continue;
+                    b.Box(fo, 0, 7.75f, 9, 60, 1.5f, (int)M.Concrete);
+                    foreach (float d in new[] { -Rail - 2, Rail + 2 }) b.Box(fo, d, 3.5f, 1.8f, 1.8f, 7f, (int)M.Concrete);
                 }
 
             b.Apply(go.GetComponent<MeshFilter>().sharedMesh);
@@ -231,7 +248,14 @@ namespace Geisterfahrer.Game
             return go;
         }
 
-        float Depth(double s, Section kind) => kind == Section.Viaduct || kind == Section.Bridge ? Mathf.Max(3, ValleyDepth(s)) : 0; // valley at least 3 m below the deck
+        // The street under a level crossing runs across the road at the middle of the module (12 m wide).
+        bool IsCrossingMid(double s)
+        {
+            foreach (var st in track.Structures) if (st.kind == Section.Crossing && s >= st.s0 && s < st.s1) return System.Math.Abs(s - (st.s0 + st.s1) / 2) < 6;
+            return false;
+        }
+
+        float Depth(double s, Section kind) => kind == Section.Viaduct || kind == Section.Bridge || kind == Section.Crossing ? Mathf.Max(3, ValleyDepth(s)) : 0; // valley at least 3 m below the deck
 
         float ValleyDepth(double s)
         {
@@ -241,6 +265,9 @@ namespace Geisterfahrer.Game
                     float h = 20 + (float)(st.s0 % 60);
                     return h * Mathf.Sin(Mathf.PI * (float)((s - st.s0) / (st.s1 - st.s0)));
                 }
+            foreach (var st in track.Structures) // level crossing: deck 5-8 m above the street, banks over 20 m
+                if (st.kind == Section.Crossing && s >= st.s0 && s < st.s1)
+                    return (5 + (float)(st.s0 % 3)) * Smooth((float)(Mathf.Min((float)(s - st.s0), (float)(st.s1 - s)) / 20));
             foreach (var st in track.Structures) // river bridge: deck 8-20 m above the water, banks easing in over 60 m
                 if (st.kind == Section.Bridge && s >= st.s0 && s < st.s1)
                     return (8 + (float)(st.s0 % 12)) * Smooth((float)(Mathf.Min((float)(s - st.s0), (float)(st.s1 - s)) / 60));
@@ -439,7 +466,7 @@ namespace Geisterfahrer.Game
             var mesh = new Mesh { indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
             go.GetComponent<MeshFilter>().sharedMesh = mesh;
             go.GetComponent<MeshRenderer>().sharedMaterials = mats;
-            Child(go, "Mass"); Child(go, "Detail"); Child(go, "Sky");
+            Child(go, "Mass"); Child(go, "Detail"); Child(go, "Sky"); Child(go, "Trees"); Child(go, "Props");
             return go;
         }
 
