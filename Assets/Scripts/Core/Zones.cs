@@ -32,6 +32,23 @@ namespace Geisterfahrer.Core
             return kinds[ends.FindIndex(e => s < e)];
         }
 
+        // Distance in metres to the nearest zone border within `max` (max if none), checked in steps of 25 m.
+        public double DistanceToBorder(double s, double max)
+        {
+            var z = At(s);
+            for (double d = 25; d < max; d += 25) if (At(s - d) != z || At(s + d) != z) return d;
+            return max;
+        }
+
+        // Borders (end of a zone) inside [a, b).
+        public System.Collections.Generic.List<double> Borders(double a, double b)
+        {
+            At(b);
+            var r = new System.Collections.Generic.List<double>();
+            for (int i = 0; i + 1 < ends.Count; i++) if (ends[i] >= a && ends[i] < b && kinds[i] != kinds[i + 1]) r.Add(ends[i]);
+            return r;
+        }
+
         // True within `margin` metres of a zone border: the scenery thins out there.
         public bool NearBorder(double s, double margin) => At(s - margin) != At(s + margin);
 

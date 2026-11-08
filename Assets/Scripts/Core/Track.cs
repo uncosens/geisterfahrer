@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Geisterfahrer.Core
 {
-    public enum Section { Open, Tunnel, Viaduct, Underground, Trench, Interchange, Bridge }
+    public enum Section { Open, Tunnel, Viaduct, Underground, Trench, Interchange, Bridge, Junction, Crossing }
 
     // Endless procedural road (GDD 6), generated ahead of the player as functions of road distance s:
     // curvature (1/R, + = curve to the player's right), grade (rise/run), structures and overpass points.
@@ -23,7 +23,7 @@ namespace Geisterfahrer.Core
 
         public readonly Zones Zones;
 
-        public Track(int seed) { rng = new Random(seed); Zones = new Zones(seed); nextOverpass = 600 + rng.NextDouble() * 1000; }
+        public Track(int seed) { rng = new Random(seed); Zones = new Zones(seed); nextOverpass = 500 + rng.NextDouble() * 500; }
 
         // Test helper: one curvature and grade forever.
         public static Track Constant(double curvature, double grade)
@@ -77,7 +77,7 @@ namespace Geisterfahrer.Core
         public void Ensure(double s, int phase)
         {
             if (hs[hs.Count - 1] >= 1e8) return; // constant test track
-            while (hs[hs.Count - 1] < s + Ahead) AddHorizontal(phase);
+            while (hs[hs.Count - 1] < s + Ahead + 2500) AddHorizontal(phase); // the vertical profile looks ahead at the curves (crest zones)
             while (vs[vs.Count - 1] < s + Ahead) AddVertical(phase);
             AddStructures(Generated, phase);
             while ((X.Count - 1) * SampleStep < Generated) Sample();
@@ -199,15 +199,31 @@ namespace Geisterfahrer.Core
 
         // ---- vertical: constant grades joined by vertical curves (6.4) ----
 
+        static readonly double[] RollerShare = { 0, 0, 0.30, 0.45 }; // share of vertical modules (GDD 6.6): P3 30 %, P4 45 %
+
         void AddVertical(int phase)
         {
             double s = vs[vs.Count - 1], g0 = vg[vg.Count - 1];
             if (s == 0) { Knot(vs, vg, Rand(800, 1500), 0); return; } // flat start
-            double g = Rand(-MaxGrade[phase], MaxGrade[phase]);
-            double len = Rand(400, 2000);
+            if (rng.NextDouble() < RollerShare[phase])
+            {
+                // Roller: 2-4 waves (4-8 half waves) in a row, grades 1.5 % up to the phase maximum, one wave 1.8-3.0 km.
+                int half = rng.Next(2, 5) * 2, sign = g0 > 0 ? -1 : 1;
+                for (int i = 0; i < half; i++, sign = -sign) Step(Math.Min(MaxGrade[phase], Rand(0.015, 0.04)) * sign, Rand(900, 1500) * 0.7);
+                return;
+            }
+            Step(Rand(-MaxGrade[phase], MaxGrade[phase]), Rand(400, 2000));
+        }
+
+        // One constant grade g of length len after a vertical curve from the previous grade.
+        void Step(double g, double len)
+        {
+            double s = vs[vs.Count - 1], g0 = vg[vg.Count - 1];
             // No crest inside a curve with R < 1500 m: move the crest past such curves (5.4).
-            double rv = g < g0 ? 20000 : 9000, lt = rv * Math.Abs(g - g0);
+            double rv = g < g0 ? 20000 : Rand(9000, 15000), lt = rv * Math.Abs(g - g0);
             while (g < g0 && MaxCurvature(s, s + lt) > 1 / 1500.0) s += 50;
+            // Crest zone (6.8 F3): from 150 m before to 300 m after a crest top no curve tighter than R = 2000 m.
+            for (int i = 0; g0 > 0 && g < 0 && i < 100 && MaxCurvature(s - 150, s + lt + 300) > 1 / 2000.0; i++) s += 50;
             // No curve under 1000 m on a downhill steeper than -2 % (6.3).
             if (g < -0.02 && MaxCurvature(s, s + lt + len) > 1 / 1000.0) { g = -0.02; lt = (g < g0 ? 20000 : 9000) * Math.Abs(g - g0); }
             Knot(vs, vg, s, g0);
@@ -254,8 +270,12 @@ namespace Geisterfahrer.Core
             }
             while (nextOverpass < upTo)
             {
-                if (KindAt(nextOverpass) == Section.Open) Overpasses.Add(nextOverpass);
-                nextOverpass += Rand(1000, 2000);
+                // Rhythm by zone (GDD 6.6): city 300-900 m, suburb 600-1500, industrial 700-1800, countryside 1500-3500; none within 150 m of the last,
+                // none in a crest zone (F3), none on a structure.
+                bool free = KindAt(nextOverpass) == Section.Open && !NearCrest(nextOverpass, nextOverpass) && (Overpasses.Count == 0 || nextOverpass - Overpasses[Overpasses.Count - 1] >= 300);
+                if (free) Overpasses.Add(nextOverpass);
+                var z = Zones.At(nextOverpass);
+                nextOverpass += z == Zone.City ? Rand(300, 900) : z == Zone.Suburb ? Rand(600, 1500) : z == Zone.Industrial ? Rand(700, 1800) : Rand(1500, 3500);
             }
         }
 
@@ -263,7 +283,8 @@ namespace Geisterfahrer.Core
 
         double nextSlot = 800;
         static readonly double[] SlotGapMin = { 0, 1000, 900, 800 }, SlotGapMax = { 0, 2400, 2000, 1800 };
-        static readonly double[][] SlotW = { null, new[] { 25.0, 15, 0, 30 }, new[] { 22.0, 14, 10, 20 }, new[] { 20.0, 13, 12, 18 } }; // interchange, bridge, trench, plain
+        // interchange a, junction b, level crossing, river bridge, trench, plain (valley viaducts have their own roll)
+        static readonly double[][] SlotW = { null, new[] { 25.0, 0, 15, 15, 0, 45 }, new[] { 22.0, 6, 14, 14, 10, 34 }, new[] { 20.0, 10, 13, 13, 12, 32 } };
         public const double TrenchMin = 700, TrenchMax = 1500;
 
         // Curvature stays under maxK over [a, b].
@@ -283,21 +304,22 @@ namespace Geisterfahrer.Core
                 var kind = (Section)(-1);
                 double[] w = (double[])SlotW[phase].Clone();
                 int pick = PickWeighted(w);
-                double len = pick == 0 ? Math.Floor(Rand(800, 1300) / 4) * 4 : pick == 1 ? Math.Floor(Rand(250, 800) / 4) * 4 : Math.Floor(Rand(TrenchMin, TrenchMax) / 4) * 4;
-                double maxK = pick == 0 ? 1 / 1500.0 : pick == 1 ? 1 / 1000.0 : 0;
-                if (pick < 3)
-                    for (double at = at0; at + len <= at0 + 1500 && at + len + 100 <= upTo; at += 50)
+                double[] lo = { 800, 1300, 100, 250, TrenchMin }, hi = { 1300, 2200, 250, 800, TrenchMax }, ks = { 1 / 1500.0, 1 / 2000.0, 1 / 1000.0, 1 / 1000.0, 0 };
+                double len = pick < 5 ? Math.Floor(Rand(lo[pick], hi[pick]) / 4) * 4 : 0, maxK = pick < 5 ? ks[pick] : 0;
+                if (pick < 5)
+                    for (double at = at0; at + len <= at0 + (pick == 4 ? 3500 : 1500) + (pick == 1 ? 700 : 0) && at + len + 100 <= upTo; at += 50)
                     {
                         if (!Straightish(at, at + len, maxK) || Busy(at - MinGap, at + len + MinGap)) continue;
-                        if (pick == 2 && (Zones.At(at) != Zone.City || Zones.At(at + len) != Zone.City || !Level(at, at + len, TrRamp))) continue;
-                        kind = pick == 0 ? Section.Interchange : pick == 1 ? Section.Bridge : Section.Trench;
+                        if (pick == 4 && (Zones.At(at) != Zone.City || Zones.At(at + len) != Zone.City || !Level(at, at + len, TrRamp, 0.03))) continue;
+                        if (pick <= 1 && NearCrest(at - 200, at + len + 200)) continue; // F5: the ramp stays within 1 m of the road height, so no crest around a gore
+                        kind = pick == 0 ? Section.Interchange : pick == 1 ? Section.Junction : pick == 2 ? Section.Crossing : pick == 3 ? Section.Bridge : Section.Trench;
                         Structures.Add((at, at + len, kind)); end = at + len;
-                        if (kind == Section.Interchange) Overpasses.Add(Math.Floor((at + end) / 2 / 4) * 4); // the local road crossing inside the module
+                        if (kind == Section.Interchange || kind == Section.Junction) Overpasses.Add(Math.Floor((at + (kind == Section.Junction ? len * 0.3 : len / 2)) / 4) * 4); // the local road crossing inside the module
                         if (kind == Section.Trench) // street bridges every 120-250 m
                             for (double x = at + TrRamp + Rand(120, 250); x < end - TrRamp; x += Rand(120, 250)) Overpasses.Add(Math.Floor(x / 4) * 4);
                         break;
                     }
-                nextSlot = (end > 0 ? end : at0) + Rand(SlotGapMin[phase], SlotGapMax[phase]);
+                nextSlot = (end > 0 ? end : at0) + (end == 0 && pick == 4 ? 250 : Rand(SlotGapMin[phase], SlotGapMax[phase])); // a trench with no host retries soon: city zones are short
             }
         }
 
@@ -350,9 +372,9 @@ namespace Geisterfahrer.Core
 
         // The ramps add up to 3.5 % (down at the entry, up at the exit): keep the total under 5.5 %,
         // so the terrain must not fall faster than 2 % on the entry ramp or rise faster than 2 % on the exit ramp.
-        bool Level(double a, double b, double ramp = UgRamp)
+        bool Level(double a, double b, double ramp = UgRamp, double tol = 0.02)
         {
-            for (double x = a; x <= a + ramp; x += 50) if (GradeBase(x) < -0.02 || GradeBase(b - (x - a)) > 0.02) return false;
+            for (double x = a; x <= a + ramp; x += 50) if (GradeBase(x) < -tol || GradeBase(b - (x - a)) > tol) return false;
             return true;
         }
 

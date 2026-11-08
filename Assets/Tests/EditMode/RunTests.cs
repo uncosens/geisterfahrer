@@ -370,9 +370,9 @@ namespace Geisterfahrer.Tests
                     for (double s = st.s0; s < st.s1; s += 10) { Assert.AreEqual(0, t.Curvature(s), 1e-12); Assert.Less(Math.Abs(t.Grade(s)), 0.06); }
                 }
             }
-            Assert.IsTrue(kinds.Contains(Section.Interchange));
-            Assert.IsTrue(kinds.Contains(Section.Bridge));
-            Assert.IsTrue(kinds.Contains(Section.Trench));
+            Assert.IsTrue(kinds.Contains(Section.Interchange), string.Join(",", kinds));
+            Assert.IsTrue(kinds.Contains(Section.Bridge), string.Join(",", kinds));
+            Assert.IsTrue(kinds.Contains(Section.Trench), string.Join(",", kinds));
         }
 
         // User changes: +40 % steering, return to straight twice as slow, +40 % traffic.
